@@ -33,7 +33,7 @@
 | [#27](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/27) 实现故障卡审核、退回与发布权限 | W7–8 | P0 | #26, #22 |
 | [#28](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/28) 实现审核案例增量索引与撤回 | W7–8 | P0 | #27 |
 | [#29](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/29) 真机验证维修案例审核回流与越权 | W7–8 | P0 | #28, #25, #18 |
-| [#30](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/30) 选择并验证一个原生鸿蒙能力 | W9–10 | P2 | #1, #18 |
+| [#30](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/30) 选择并验证一个原生鸿蒙能力 | W9–10 | P1 | #1, #18 |
 | [#31](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/31) 完成参照页面对照与视觉打磨 | W9–10 | P1 | #4, #18, #23 |
 | [#32](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/32) 运行检索、回答与建单评测并归档失败例 | W9–10 | P0 | #21, #24, #29 |
-| [#33](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/33) 完成真机回归、演示脚本、报告与贡献记录 | W9–10 | P0 | #29, #31, #32 |
+| [#33](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/33) 完成真机回归、演示脚本、报告与贡献记录 | W9–10 | P0 | #29, #30, #31, #32 |
