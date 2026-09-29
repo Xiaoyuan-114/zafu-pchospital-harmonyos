@@ -65,7 +65,7 @@ def main():
     by_title = {item["title"]: item["number"] for item in existing}
     numbers = {}
     stage_order = {}
-    lines = ["# Issue 依赖地图", "", "每个里程碑内的两位编号用于列表排序；实际开工顺序以“前置”依赖为准，可并行的任务无需等待较小编号完成。每项默认未分配，成员认领时填写 owner 与 reviewer。", "", "| 顺序 | Issue | 阶段 | 优先级 | 前置 |", "|---|---|---|---|---|"]
+    lines = ["# Issue 依赖地图", "", "每个里程碑内的两位编号用于列表排序；实际开工顺序以“前置”依赖为准，可并行的任务无需等待较小编号完成。每项默认未分配，成员认领时填写 owner，可按需邀请 reviewer。", "", "| 顺序 | Issue | 阶段 | 优先级 | 前置 |", "|---|---|---|---|---|"]
     for key, stage, priority, area, title, estimate, deps, role, delivery, acceptance, anchor in TASKS:
         stage_name = ['1-2', '3-4', '5-6', '7-8', '9-10'][stage-1]
         old_title = f"[W{['1–2','3–4','5–6','7–8','9–10'][stage-1]}] {title}"
@@ -94,7 +94,7 @@ def main():
 - [ ] 交付物和必要契约/文档已提交，依赖 Issue 已完成
 - [ ] 相关构建、测试及越权/错误场景有真实证据
 - [ ] 真机验证已附设备与版本；未验证只标代码完成
-- [ ] 由另一位成员 review，合并后确认远端 commit/ref
+- [ ] PR 记录验证结果，合并后确认远端 commit/ref（无需另一位成员批准）
 """
         labels = [f"priority:{priority}", f"stage:W{['1-2','3-4','5-6','7-8','9-10'][stage-1]}", f"area:{area}"]
         if anchor:
