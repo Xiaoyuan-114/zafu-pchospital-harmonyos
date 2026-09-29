@@ -1,6 +1,6 @@
 name: 可验收任务
 description: 适合 1–3 人日的课程开发任务
-title: "[阶段] 具体用户行为或基础契约"
+title: "[Wn-m/nn] 具体用户行为或基础契约"
 body:
   - type: textarea
     id: goal
@@ -45,4 +45,4 @@ body:
         - label: 契约/文档及相关测试更新
         - label: 构建与必要测试结果已附命令和日志
         - label: 真机设备、系统版本、截图/录屏已附；未验证则明确标记
-        - label: PR 由另一位成员审核
+        - label: PR 记录验证结果；无需另一位成员批准
