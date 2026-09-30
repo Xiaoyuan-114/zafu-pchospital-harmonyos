@@ -1,35 +1,36 @@
-# 鸿蒙电脑医院实验后端
+# 本地实验后端
 
-课设 App 的本地实验后端，从原 Web 提取可复用的 Next.js API 与 Prisma 模型。按开发方案自行推进，不使用 Issues、固定周计划或强制 PR 审批。
+同仓库的 `backend/` 提供 Next.js API 与 Prisma/MySQL 数据层。组员先启动本机 MySQL，再运行初始化命令即可开发。
 
-- 技术：Node.js 24、pnpm 12.4.1、Next.js 15、Prisma 7、本机 MySQL。
-- 数据库：本机独立开发库和测试库；不使用 Docker 或线上实验库。
-- 代码：`src/app/api/v1/` 为接口，`src/features/` 为业务，`prisma/` 为模型/迁移/seed，`tests/` 为真实测试。
-- 原生 Bearer 登录、客户报修/预约对象及 AI 问答尚未实现。已有 `RepairRecord` 是工作人员维修备案，客户报修仍需开发。
-- 保留的 Web 页面与业务模块来自原项目，仅作为复用源码；课设完成状态以实际联调为准。
+## 新人快速开始
 
-## 本地运行
+要求：Node.js 24、Corepack、已安装且运行的本机 MySQL，以及本机 MySQL 可建库/建账号的管理员账号。已实测 Node 24.16.0、pnpm 12.4.1、MySQL 9.6.0；其他 MySQL 版本需实际验证。Corepack 不存在时先运行 `npm install --global corepack`；命令使用 `corepack pnpm`，无须单独安装 pnpm。
 
 ```powershell
+git clone https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos.git
+cd zafu-pchospital-harmonyos/backend
 corepack pnpm install --frozen-lockfile
-# 按 docs/local-development.md 建立本机数据库，复制 .env.example 为 .env 并填写本机账号。
-corepack pnpm db:migrate:deploy
-corepack pnpm db:seed
-corepack pnpm db:health
+corepack pnpm setup:local
 corepack pnpm dev --port 13080
 ```
 
-健康接口：`http://localhost:13080/api/v1/health`。模拟器/真机使用电脑局域网 IP（如 `http://192.168.x.x:13080`），数据库仍只由后端访问。HTTP 真机访问配置需在 App 工程中按实际 SDK 验证；当前未完成真机联调。
+`setup:local` 首次交互询问本机 MySQL 地址/端口（默认 `127.0.0.1:3306`）、管理员账号和不回显的密码，建立独立开发库/测试库及各自账号，并生成本机 `.env`。管理员密码不会保存。同名库或账号已存在时直接停止，换一个库标识或提供原 `.env`；已有 `.env` 时保留连接与密钥，应用迁移、基础字典 seed 并检查数据库健康。
+
+浏览器访问 `http://localhost:13080/api/v1/health`：应返回 `success: true` 和 `database: reachable`。手机与电脑处于同一局域网时，将 App API 地址设为电脑实际局域网 IP（如 `http://192.168.1.20:13080`），允许本机防火墙的应用端口；数据库只由后端访问。HTTP 真机配置仍需按实际 SDK 验证，当前未完成真机联调。
+
+## 开发范围与检查
+
+- 接口：`src/app/api/v1/`；业务：`src/features/`；模型与迁移：`prisma/`；测试：`tests/`。
+- 原生 Bearer 登录、客户报修/预约、AI 问答尚未实现。`RepairRecord` 是工作人员维修备案。
+- 直接运行本机 Node/MySQL；团队按[开发方案](../docs/development-plan.md)自行安排进度。
 
 ```powershell
 corepack pnpm lint
 corepack pnpm test:unit
 corepack pnpm build
-corepack pnpm db:migrate:test
-corepack pnpm db:seed:test
 corepack pnpm test:db
 ```
 
-数据库测试自动选择 `TEST_DATABASE_URL`，只允许指定的 `_test` 库。`db:reset:test` 清空测试库，开发库保留。完整配置、初始化和当前核验状态见 [本地开发说明](docs/local-development.md)。
+`test:db` 自动选择 `.env` 中的 `TEST_DATABASE_URL`，会修改/清理测试数据，只允许指定的 `_test` 库。更多配置、当前电脑 MySQL 启停和验证范围见[本地开发说明](docs/local-development.md)。
 
-源码来源：`ZAFU-PCHospital/zafu-pchospital-web`，提取基点 `64eb141ec21468c46f001dbe7cdab1183e4cb23c`，用于课程实验。需求见 [App 开发方案](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/blob/main/docs/development-plan.md)。原项目许可证由维护者决定，本仓库未添加扩大授权范围的许可证。
+源码来自 `ZAFU-PCHospital/zafu-pchospital-web`，提取基点 `64eb141ec21468c46f001dbe7cdab1183e4cb23c`，用于课程实验；原项目许可证由维护者决定。

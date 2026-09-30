@@ -8,6 +8,7 @@
     "node": "^20.19 || ^22.12 || >=24.0"
   },
   "scripts": {
+    "setup:local": "node tools/setup-local.mjs",
     "postinstall": "prisma generate && node tools/ensure-doc-manifest.mjs",
     "predev": "node tools/ensure-doc-manifest.mjs",
     "dev": "next dev",

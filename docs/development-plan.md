@@ -30,7 +30,7 @@
 
 ## 已核实的业务基础
 
-原 Web 核查起点是提交 `64eb141ec21468c46f001dbe7cdab1183e4cb23c`；课设后端由这份已提交源码开始。
+原 Web 核查起点是提交 `64eb141ec21468c46f001dbe7cdab1183e4cb23c`；课设后端由这份已提交源码开始，现放在本仓库 `backend/`。
 
 - 技术栈为 Next.js App Router、TypeScript、Prisma、MySQL 协议数据库；原服务使用 GreatSQL，本课设改用本机 MySQL。
 - 原会话通过 HttpOnly Cookie 读取 Session，写请求检查 Origin；原生 Bearer 通道需要实际实现，不能假定现成可用。
@@ -52,7 +52,7 @@ flowchart LR
   Review --> AI
 ```
 
-- `core/auth` 管会话，`core/network` 管请求和错误，`core/ui` 管导航与主题；业务模块位于 `features/`。
+- 原生工程位于 `app/`，后端位于 `backend/`。`app/entry/src/main/ets/core/auth` 管会话，`core/network` 管请求和错误，`core/ui` 管导航与主题；业务模块位于 `features/`。
 - 后端使用本地课设开发库和独立测试库；迁移、seed 和数据库测试以其实际可用脚本为准。
 - 页面只接真实存在的接口，新增模型与接口先确定字段、角色、状态及错误行为。
 - 原生登录需要服务端验证的会话契约；不通过伪造 Origin 绕过原 Web 保护。
@@ -76,4 +76,4 @@ flowchart LR
 
 ## 当前状态
 
-App 已有可编译的 Stage 工程、导航、主题和三个模块入口，业务尚未接入。后端已改为本机直接运行：当前电脑 MySQL 使用独立实例 `127.0.0.1:3308`，API 使用 `http://localhost:13080`，迁移、seed、健康检查与后端测试已通过；原服务器实验服务已停用。启动步骤见后端仓库的 [本地开发说明](https://github.com/Xiaoyuan-114/zafu-pchospital-experiment-api/blob/main/docs/local-development.md)。真机登录、跨角色业务与 AI 回流尚未验证。每次实现后同步更新真实进度即可。
+App 已有可编译的 Stage 工程、导航、主题和三个模块入口，业务尚未接入。后端已改为本机直接运行：当前电脑 MySQL 使用独立实例 `127.0.0.1:3308`，API 使用 `http://localhost:13080`，迁移、seed、健康检查与后端测试已通过；原服务器实验服务已停用。前后端现在位于同一公开仓库的 `app/` 与 `backend/`；启动步骤见 [本地开发说明](../backend/docs/local-development.md)。真机登录、跨角色业务与 AI 回流尚未验证。每次实现后同步更新真实进度即可。
