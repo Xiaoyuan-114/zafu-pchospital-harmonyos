@@ -76,4 +76,4 @@ flowchart LR
 
 ## 当前状态
 
-App 已有可编译的 Stage 工程、导航、主题和三个模块入口，业务尚未接入。后端正在切换为本机直接运行。SDK 和设备以团队能实际使用的版本为准；真机登录、跨角色业务与 AI 回流尚未验证。每次实现后同步更新真实进度即可。
+App 已有可编译的 Stage 工程、导航、主题和三个模块入口，业务尚未接入。后端已改为本机直接运行：当前电脑 MySQL 使用独立实例 `127.0.0.1:3308`，API 使用 `http://localhost:13080`，迁移、seed、健康检查与后端测试已通过；原服务器实验服务已停用。启动步骤见后端仓库的 [本地开发说明](https://github.com/Xiaoyuan-114/zafu-pchospital-experiment-api/blob/main/docs/local-development.md)。真机登录、跨角色业务与 AI 回流尚未验证。每次实现后同步更新真实进度即可。
