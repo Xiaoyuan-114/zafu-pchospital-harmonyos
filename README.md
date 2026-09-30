@@ -30,7 +30,7 @@ ohpm install
 hvigorw --mode module -p product=default assembleHap
 ```
 
-本工程之前已在英文路径构建出未签名 HAP；当前页面没有真机运行证据。中文父目录会触发 Hvigor `Invalid project path`，因此不能在当前中文工作区直接构建。
+2026-09-30 已从精简后的仓库源码在英文目录重新执行 `ohpm install` 和 `assembleHap`，结果 **BUILD SUCCESSFUL**，产物为未签名 HAP。`hdc list targets` 返回 `[Empty]`，尚未做真机安装。中文父目录会触发 Hvigor `Invalid project path`，因此不能在当前中文工作区直接构建。
 
 ## 本地后端
 
