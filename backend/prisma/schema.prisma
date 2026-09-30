@@ -1,0 +1,593 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  engineType   = "client"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id                 String                  @id @db.Char(36)
+  status             String                  @db.VarChar(32)
+  displayName        String?                 @map("display_name") @db.VarChar(80)
+  createdAt          DateTime                @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt          DateTime?               @map("deleted_at") @db.DateTime(3)
+  identities         UserIdentity[]
+  passwordCredential PasswordCredential?
+  roles              UserRole[]              @relation("UserRoles")
+  rolesGranted       UserRole[]              @relation("GrantedBy")
+  memberProfile      MemberProfile?
+  reviews            JoinApplicationReview[]
+  inviteCodesCreated InviteCode[]
+  redemptions        InviteCodeRedemption[]
+  provisions         AccountProvision[]
+  auditLogs          AuditLog[]
+  authSessions       AuthSession[]
+  repairReviews      RepairReview[]
+  repairPhotos       RepairPhoto[]           @relation("RepairPhotoUploader")
+  repairTimeline     RepairTimelineEvent[]
+  repairCategories   RepairCategory[]        @relation("RepairCategoryCreator")
+  skillsCreated      Skill[]                 @relation("SkillCreator")
+  publicSettings     PublicContentSetting[]  @relation("PublicContentSettingUpdater")
+  repairActivities   RepairActivity[]        @relation("RepairActivityCreator")
+
+  @@index([status, deletedAt], map: "users_status_deleted_idx")
+  @@map("users")
+}
+
+model AuthSession {
+  id              String    @id @db.Char(36)
+  userId          String    @map("user_id") @db.Char(36)
+  tokenDigest     Bytes     @unique(map: "auth_sessions_token_digest_uq") @map("token_digest") @db.Binary(32)
+  createdAt       DateTime  @map("created_at") @db.DateTime(3)
+  lastSeenAt      DateTime  @map("last_seen_at") @db.DateTime(3)
+  expiresAt       DateTime  @map("expires_at") @db.DateTime(3)
+  revokedAt       DateTime? @map("revoked_at") @db.DateTime(3)
+  ipDigest        Bytes?    @map("ip_digest") @db.Binary(32)
+  userAgentDigest Bytes?    @map("user_agent_digest") @db.Binary(32)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt, expiresAt], map: "auth_sessions_user_revoked_expires_idx")
+  @@index([expiresAt], map: "auth_sessions_expires_idx")
+  @@map("auth_sessions")
+}
+
+model LoginThrottle {
+  keyDigest       Bytes     @id @map("key_digest") @db.Binary(32)
+  failedCount     Int       @default(0) @map("failed_count")
+  windowStartedAt DateTime  @map("window_started_at") @db.DateTime(3)
+  blockedUntil    DateTime? @map("blocked_until") @db.DateTime(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@index([blockedUntil], map: "login_throttles_blocked_idx")
+  @@map("login_throttles")
+}
+
+model UserIdentity {
+  id                   String    @id @db.Char(36)
+  userId               String    @map("user_id") @db.Char(36)
+  type                 String    @db.VarChar(32)
+  identifierNormalized String    @map("identifier_normalized") @db.VarChar(191)
+  verifiedAt           DateTime? @map("verified_at") @db.DateTime(3)
+  createdAt            DateTime  @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt            DateTime? @map("deleted_at") @db.DateTime(3)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([type, identifierNormalized], map: "user_identities_type_identifier_uq")
+  @@index([userId, deletedAt], map: "user_identities_user_deleted_idx")
+  @@map("user_identities")
+}
+
+model PasswordCredential {
+  userId             String    @id @map("user_id") @db.Char(36)
+  passwordHash       String    @map("password_hash") @db.VarChar(255)
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  passwordChangedAt  DateTime? @map("password_changed_at") @db.DateTime(3)
+  createdAt          DateTime  @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("password_credentials")
+}
+
+model Role {
+  id        String     @id @db.Char(36)
+  code      String     @unique(map: "roles_code_uq") @db.VarChar(32)
+  name      String     @db.VarChar(64)
+  createdAt DateTime   @map("created_at") @db.DateTime(3)
+  users     UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id         String    @id @db.Char(36)
+  userId     String    @map("user_id") @db.Char(36)
+  roleId     String    @map("role_id") @db.Char(36)
+  sourceType String    @map("source_type") @db.VarChar(32)
+  sourceId   String?   @map("source_id") @db.Char(36)
+  grantedBy  String?   @map("granted_by") @db.Char(36)
+  grantedAt  DateTime  @map("granted_at") @db.DateTime(3)
+  revokedAt  DateTime? @map("revoked_at") @db.DateTime(3)
+  activeKey  String?   @unique(map: "user_roles_active_key_uq") @map("active_key") @db.VarChar(80)
+  user       User      @relation("UserRoles", fields: [userId], references: [id], onDelete: Restrict)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  grantor    User?     @relation("GrantedBy", fields: [grantedBy], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt], map: "user_roles_user_revoked_idx")
+  @@index([roleId], map: "user_roles_role_idx")
+  @@map("user_roles")
+}
+
+model MemberProfile {
+  id            String                 @id @db.Char(36)
+  userId        String                 @unique(map: "member_profiles_user_uq") @map("user_id") @db.Char(36)
+  realName      String                 @map("real_name") @db.VarChar(64)
+  studentId     String?                @map("student_id") @db.VarChar(32)
+  className     String?                @map("class_name") @db.VarChar(80)
+  nickname      String?                @db.VarChar(64)
+  avatarUrl     String?                @map("avatar_url") @db.VarChar(500)
+  status        String                 @db.VarChar(32)
+  version       Int                    @default(1) @db.Int
+  sortOrder     Int                    @default(0) @map("sort_order") @db.Int
+  joinedAt      DateTime               @map("joined_at") @db.DateTime(3)
+  createdAt     DateTime               @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt     DateTime?              @map("deleted_at") @db.DateTime(3)
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  redemptions   InviteCodeRedemption[]
+  provisions    AccountProvision[]
+  repairRecords     RepairRecord[]
+  userSkills        UserSkill[]
+  repairComments    RepairComment[]
+  commentMentions   CommentMention[]
+  repairFavorites   RepairFavorite[]
+  notificationsIn   Notification[]   @relation("NotificationRecipient")
+  notificationsOut  Notification[]   @relation("NotificationActor")
+  activityAttendances RepairActivityAttendance[]
+  activityServedRegs  RepairActivityRegistration[] @relation("RepairActivityServedBy")
+
+  @@index([status, deletedAt], map: "member_profiles_status_deleted_idx")
+  @@index([deletedAt, sortOrder, createdAt], map: "member_profiles_order_idx")
+  @@map("member_profiles")
+}
+
+model JoinApplication {
+  id                 String                  @id @db.Char(36)
+  ticketNo           String                  @unique(map: "join_applications_ticket_uq") @map("ticket_no") @db.VarChar(32)
+  recruitmentCycle   String                  @map("recruitment_cycle") @db.VarChar(32)
+  realName           String                  @map("real_name") @db.VarChar(64)
+  qqNormalized       String                  @map("qq_normalized") @db.VarChar(32)
+  phoneNormalized    String                  @map("phone_normalized") @db.VarChar(32)
+  selfIntroduction   String?                 @map("self_introduction") @db.Text
+  preferredDirection String?                 @map("preferred_direction") @db.VarChar(120)
+  applicantRemark    String?                 @map("applicant_remark") @db.VarChar(500)
+  status             String                  @db.VarChar(32)
+  provisionStatus    String                  @map("provision_status") @db.VarChar(32)
+  privacyConsentAt   DateTime                @map("privacy_consent_at") @db.DateTime(3)
+  submittedAt        DateTime                @map("submitted_at") @db.DateTime(3)
+  lastReviewedAt     DateTime?               @map("last_reviewed_at") @db.DateTime(3)
+  createdAt          DateTime                @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt          DateTime?               @map("deleted_at") @db.DateTime(3)
+  reviews            JoinApplicationReview[]
+
+  @@unique([recruitmentCycle, qqNormalized], map: "join_applications_cycle_qq_uq")
+  @@unique([recruitmentCycle, phoneNormalized], map: "join_applications_cycle_phone_uq")
+  @@index([status, submittedAt], map: "join_applications_status_submitted_idx")
+  @@index([provisionStatus, updatedAt], map: "join_applications_provision_updated_idx")
+  @@map("join_applications")
+}
+
+model JoinApplicationReview {
+  id             String          @id @db.Char(36)
+  applicationId  String          @map("application_id") @db.Char(36)
+  result         String          @db.VarChar(32)
+  interviewedAt  DateTime        @map("interviewed_at") @db.DateTime(3)
+  reviewerUserId String          @map("reviewer_user_id") @db.Char(36)
+  internalNote   String?         @map("internal_note") @db.VarChar(2000)
+  createdAt      DateTime        @map("created_at") @db.DateTime(3)
+  application    JoinApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  reviewer       User            @relation(fields: [reviewerUserId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, createdAt], map: "join_reviews_application_created_idx")
+  @@map("join_application_reviews")
+}
+
+model InviteCode {
+  id                   String                 @id @db.Char(36)
+  codeDigest           Bytes                  @unique(map: "invite_codes_digest_uq") @map("code_digest") @db.Binary(32)
+  displayPrefix        String                 @map("display_prefix") @db.VarChar(12)
+  status               String                 @db.VarChar(32)
+  activeFrom           DateTime?              @map("active_from") @db.DateTime(3)
+  expiresAt            DateTime?              @map("expires_at") @db.DateTime(3)
+  maxUses              Int                    @map("max_uses")
+  usedCount            Int                    @default(0) @map("used_count")
+  boundQqNormalized    String?                @map("bound_qq_normalized") @db.VarChar(32)
+  boundPhoneNormalized String?                @map("bound_phone_normalized") @db.VarChar(32)
+  createdByUserId      String                 @map("created_by_user_id") @db.Char(36)
+  createdAt            DateTime               @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.DateTime(3)
+  revokedAt            DateTime?              @map("revoked_at") @db.DateTime(3)
+  deletedAt            DateTime?              @map("deleted_at") @db.DateTime(3)
+  creator              User                   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  redemptions          InviteCodeRedemption[]
+
+  @@index([status, expiresAt], map: "invite_codes_status_expires_idx")
+  @@map("invite_codes")
+}
+
+model InviteCodeRedemption {
+  id              String        @id @db.Char(36)
+  inviteCodeId    String        @map("invite_code_id") @db.Char(36)
+  userId          String        @map("user_id") @db.Char(36)
+  memberProfileId String        @map("member_profile_id") @db.Char(36)
+  idempotencyKey  String        @unique(map: "invite_redemptions_idempotency_uq") @map("idempotency_key") @db.VarChar(128)
+  redeemedAt      DateTime      @map("redeemed_at") @db.DateTime(3)
+  inviteCode      InviteCode    @relation(fields: [inviteCodeId], references: [id], onDelete: Restrict)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  memberProfile   MemberProfile @relation(fields: [memberProfileId], references: [id], onDelete: Restrict)
+
+  @@index([inviteCodeId, redeemedAt], map: "invite_redemptions_code_redeemed_idx")
+  @@index([userId], map: "invite_redemptions_user_idx")
+  @@map("invite_code_redemptions")
+}
+
+model AccountProvision {
+  id              String         @id @db.Char(36)
+  sourceType      String         @map("source_type") @db.VarChar(32)
+  sourceId        String         @map("source_id") @db.Char(36)
+  idempotencyKey  String         @unique(map: "account_provisions_idempotency_uq") @map("idempotency_key") @db.VarChar(128)
+  status          String         @db.VarChar(32)
+  userId          String?        @map("user_id") @db.Char(36)
+  memberProfileId String?        @map("member_profile_id") @db.Char(36)
+  attemptCount    Int            @default(0) @map("attempt_count")
+  lastErrorCode   String?        @map("last_error_code") @db.VarChar(64)
+  createdAt       DateTime       @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  completedAt     DateTime?      @map("completed_at") @db.DateTime(3)
+  user            User?          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  memberProfile   MemberProfile? @relation(fields: [memberProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceType, sourceId], map: "account_provisions_source_uq")
+  @@index([status, updatedAt], map: "account_provisions_status_updated_idx")
+  @@map("account_provisions")
+}
+
+model AuditLog {
+  id              String   @id @db.Char(36)
+  actorType       String   @map("actor_type") @db.VarChar(16)
+  actorUserId     String?  @map("actor_user_id") @db.Char(36)
+  action          String   @db.VarChar(80)
+  targetType      String   @map("target_type") @db.VarChar(80)
+  targetId        String   @map("target_id") @db.Char(36)
+  requestId       String   @map("request_id") @db.VarChar(64)
+  result          String   @db.VarChar(16)
+  beforeSummary   Json?    @map("before_summary")
+  afterSummary    Json?    @map("after_summary")
+  errorCode       String?  @map("error_code") @db.VarChar(64)
+  ipDigest        Bytes?   @map("ip_digest") @db.Binary(32)
+  userAgentDigest Bytes?   @map("user_agent_digest") @db.Binary(32)
+  createdAt       DateTime @map("created_at") @db.DateTime(3)
+  actor           User?    @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetType, targetId, createdAt], map: "audit_logs_target_created_idx")
+  @@index([actorUserId, createdAt], map: "audit_logs_actor_created_idx")
+  @@index([requestId], map: "audit_logs_request_idx")
+  @@map("audit_logs")
+}
+
+model RepairCategory {
+  id          String         @id @db.Char(36)
+  code        String         @unique(map: "repair_categories_code_uq") @db.VarChar(64)
+  name        String         @db.VarChar(80)
+  description String?        @db.VarChar(500)
+  sortOrder   Int            @default(0) @map("sort_order")
+  isActive    Boolean        @default(true) @map("is_active")
+  createdBy   String?        @map("created_by") @db.Char(36)
+  createdAt   DateTime       @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt   DateTime?      @map("deleted_at") @db.DateTime(3)
+  creator     User?          @relation("RepairCategoryCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  records     RepairRecord[]
+
+  @@index([isActive, sortOrder], map: "repair_categories_active_sort_idx")
+  @@map("repair_categories")
+}
+
+/// M3 技能标签。成员只能关联 isActive = true 且未软删除的标签。
+model Skill {
+  id          String      @id @db.Char(36)
+  code        String      @unique(map: "skills_code_uq") @db.VarChar(64)
+  name        String      @db.VarChar(80)
+  description String?     @db.VarChar(500)
+  sortOrder   Int         @default(0) @map("sort_order")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdBy   String?     @map("created_by") @db.Char(36)
+  createdAt   DateTime    @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt   DateTime?   @map("deleted_at") @db.DateTime(3)
+  creator     User?       @relation("SkillCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  userSkills  UserSkill[]
+
+  @@index([isActive, deletedAt, sortOrder, name], map: "skills_active_deleted_sort_name_idx")
+  @@map("skills")
+}
+
+/// M3 成员技能关联。沿用需求文档命名，但外键指向 MemberProfile，
+/// 不保存 QQ、手机号、姓名或冗余 userId；取消选择走软删除，再次选择复用同一行。
+model UserSkill {
+  id              String        @id @db.Char(36)
+  memberProfileId String        @map("member_profile_id") @db.Char(36)
+  skillId         String        @map("skill_id") @db.Char(36)
+  createdAt       DateTime      @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.DateTime(3)
+  memberProfile   MemberProfile @relation(fields: [memberProfileId], references: [id], onDelete: Restrict)
+  skill           Skill         @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([memberProfileId, skillId], map: "user_skills_member_skill_uq")
+  @@index([memberProfileId, deletedAt], map: "user_skills_member_deleted_idx")
+  @@index([skillId, deletedAt], map: "user_skills_skill_deleted_idx")
+  @@map("user_skills")
+}
+
+model RepairRecord {
+  id               String                @id @db.Char(36)
+  memberProfileId  String                @map("member_profile_id") @db.Char(36)
+  repairDate       DateTime?             @map("repair_date") @db.Date
+  durationMinutes  Int?                  @map("duration_minutes")
+  categoryId       String?               @map("category_id") @db.Char(36)
+  /// 机型（issue #68）：活动报名时的选填字段，接待落单时带进记录；手工建单一般为空。
+  deviceModel      String?               @map("device_model") @db.VarChar(60)
+  content          String?               @db.Text
+  result           String?               @db.VarChar(32)
+  remark           String?               @db.VarChar(2000)
+  status           String                @db.VarChar(32)
+  isDifficult      Boolean               @default(false) @map("is_difficult")
+  isTypical        Boolean               @default(false) @map("is_typical")
+  version          Int                   @default(1)
+  createRequestKey String                @unique(map: "repair_records_create_request_uq") @map("create_request_key") @db.VarChar(128)
+  submittedAt      DateTime?             @map("submitted_at") @db.DateTime(3)
+  reviewedAt       DateTime?             @map("reviewed_at") @db.DateTime(3)
+  createdAt        DateTime              @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt        DateTime?             @map("deleted_at") @db.DateTime(3)
+  memberProfile    MemberProfile         @relation(fields: [memberProfileId], references: [id], onDelete: Restrict)
+  category         RepairCategory?       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  photos           RepairPhoto[]
+  reviews          RepairReview[]
+  timeline         RepairTimelineEvent[]
+  comments         RepairComment[]
+  favorites        RepairFavorite[]
+  notifications    Notification[]
+  activityRegistration RepairActivityRegistration?
+
+  @@index([memberProfileId, status, repairDate], map: "repair_records_member_status_date_idx")
+  @@index([status, submittedAt], map: "repair_records_status_submitted_idx")
+  @@index([categoryId, status, repairDate], map: "repair_records_category_status_date_idx")
+  @@index([repairDate], map: "repair_records_date_idx")
+  @@index([isDifficult, status], map: "repair_records_difficult_status_idx")
+  @@index([isTypical, status], map: "repair_records_typical_status_idx")
+  @@map("repair_records")
+}
+
+model RepairPhoto {
+  id               String       @id @db.Char(36)
+  repairRecordId   String       @map("repair_record_id") @db.Char(36)
+  storageKey       String       @unique(map: "repair_photos_storage_key_uq") @map("storage_key") @db.VarChar(255)
+  originalName     String?      @map("original_name") @db.VarChar(255)
+  mimeType         String       @map("mime_type") @db.VarChar(64)
+  sizeBytes        Int          @map("size_bytes")
+  sha256Digest     Bytes        @map("sha256_digest") @db.Binary(32)
+  sortOrder        Int          @default(0) @map("sort_order")
+  uploadedByUserId String       @map("uploaded_by_user_id") @db.Char(36)
+  createdAt        DateTime     @map("created_at") @db.DateTime(3)
+  deletedAt        DateTime?    @map("deleted_at") @db.DateTime(3)
+  record           RepairRecord @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+  uploader         User         @relation("RepairPhotoUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([repairRecordId, deletedAt, sortOrder, createdAt], map: "repair_photos_record_sort_idx")
+  @@map("repair_photos")
+}
+
+model RepairReview {
+  id             String       @id @db.Char(36)
+  repairRecordId String       @map("repair_record_id") @db.Char(36)
+  reviewerUserId String       @map("reviewer_user_id") @db.Char(36)
+  decision       String       @db.VarChar(32)
+  note           String?      @db.VarChar(2000)
+  idempotencyKey String       @unique(map: "repair_reviews_idempotency_uq") @map("idempotency_key") @db.VarChar(128)
+  createdAt      DateTime     @map("created_at") @db.DateTime(3)
+  record         RepairRecord @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+  reviewer       User         @relation(fields: [reviewerUserId], references: [id], onDelete: Restrict)
+
+  @@index([repairRecordId, createdAt], map: "repair_reviews_record_created_idx")
+  @@map("repair_reviews")
+}
+
+model RepairTimelineEvent {
+  id             String       @id @db.Char(36)
+  repairRecordId String       @map("repair_record_id") @db.Char(36)
+  actorUserId    String?      @map("actor_user_id") @db.Char(36)
+  eventType      String       @map("event_type") @db.VarChar(32)
+  summary        Json?
+  createdAt      DateTime     @map("created_at") @db.DateTime(3)
+  record         RepairRecord @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+  actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([repairRecordId, createdAt], map: "repair_timeline_record_created_idx")
+  @@map("repair_timeline_events")
+}
+
+/// M4 维修记录评论。两层结构：根评论 parentCommentId 为空，回复一律挂到根评论。
+/// 删除走 deletedAt 软删除，正文保留供审计，默认读取排除已删行。
+model RepairComment {
+  id                    String           @id @db.Char(36)
+  repairRecordId        String           @map("repair_record_id") @db.Char(36)
+  authorMemberProfileId String           @map("author_member_profile_id") @db.Char(36)
+  parentCommentId       String?          @map("parent_comment_id") @db.Char(36)
+  body                  String           @db.Text
+  createdAt             DateTime         @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt             DateTime?        @map("deleted_at") @db.DateTime(3)
+  record                RepairRecord     @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+  author                MemberProfile    @relation(fields: [authorMemberProfileId], references: [id], onDelete: Restrict)
+  parent                RepairComment?   @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Restrict)
+  replies               RepairComment[]  @relation("CommentReplies")
+  mentions              CommentMention[]
+  notifications         Notification[]
+
+  @@index([repairRecordId, createdAt], map: "repair_comments_record_created_idx")
+  @@index([authorMemberProfileId, createdAt], map: "repair_comments_author_created_idx")
+  @@index([parentCommentId, createdAt], map: "repair_comments_parent_created_idx")
+  @@map("repair_comments")
+}
+
+/// M4 评论提及。同一评论对同一成员只记一次。
+model CommentMention {
+  id                       String        @id @db.Char(36)
+  commentId                String        @map("comment_id") @db.Char(36)
+  mentionedMemberProfileId String        @map("mentioned_member_profile_id") @db.Char(36)
+  createdAt                DateTime      @map("created_at") @db.DateTime(3)
+  comment                  RepairComment @relation(fields: [commentId], references: [id], onDelete: Restrict)
+  mentioned                MemberProfile @relation(fields: [mentionedMemberProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([commentId, mentionedMemberProfileId], map: "comment_mentions_comment_member_uq")
+  @@index([mentionedMemberProfileId], map: "comment_mentions_member_idx")
+  @@map("comment_mentions")
+}
+
+/// M4 维修记录收藏。唯一键 (memberProfileId, repairRecordId)；取消走软删除，再次收藏恢复同一行。
+model RepairFavorite {
+  id              String        @id @db.Char(36)
+  memberProfileId String        @map("member_profile_id") @db.Char(36)
+  repairRecordId  String        @map("repair_record_id") @db.Char(36)
+  createdAt       DateTime      @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.DateTime(3)
+  memberProfile   MemberProfile @relation(fields: [memberProfileId], references: [id], onDelete: Restrict)
+  record          RepairRecord  @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+
+  @@unique([memberProfileId, repairRecordId], map: "repair_favorites_member_record_uq")
+  @@index([memberProfileId, deletedAt, createdAt], map: "repair_favorites_member_deleted_created_idx")
+  @@index([repairRecordId, deletedAt], map: "repair_favorites_record_deleted_idx")
+  @@map("repair_favorites")
+}
+
+/// M4 成员通知。只发给有效成员档案；删除走软删除，未读/已读状态保留。
+model Notification {
+  id                       String         @id @db.Char(36)
+  recipientMemberProfileId String         @map("recipient_member_profile_id") @db.Char(36)
+  type                     String         @db.VarChar(32)
+  status                   String         @db.VarChar(16)
+  repairRecordId           String?        @map("repair_record_id") @db.Char(36)
+  commentId                String?        @map("comment_id") @db.Char(36)
+  actorMemberProfileId     String?        @map("actor_member_profile_id") @db.Char(36)
+  readAt                   DateTime?      @map("read_at") @db.DateTime(3)
+  createdAt                DateTime       @map("created_at") @db.DateTime(3)
+  updatedAt                DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt                DateTime?      @map("deleted_at") @db.DateTime(3)
+  recipient                MemberProfile  @relation("NotificationRecipient", fields: [recipientMemberProfileId], references: [id], onDelete: Restrict)
+  actor                    MemberProfile? @relation("NotificationActor", fields: [actorMemberProfileId], references: [id], onDelete: Restrict)
+  record                   RepairRecord?  @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+  comment                  RepairComment? @relation(fields: [commentId], references: [id], onDelete: Restrict)
+
+  @@index([recipientMemberProfileId, status, createdAt], map: "notifications_recipient_status_created_idx")
+  @@index([recipientMemberProfileId, deletedAt, createdAt], map: "notifications_recipient_deleted_created_idx")
+  @@index([repairRecordId], map: "notifications_record_idx")
+  @@index([commentId], map: "notifications_comment_idx")
+  @@map("notifications")
+}
+
+/// M6 批次 2：公开内容与展示策略（需求 §31 / §32 / §74）。
+///
+/// **单行配置表**。`id` 固定为常量 `PUBLIC_CONTENT_SETTINGS_ID`，主键本身即单行约束，
+/// 不需要额外唯一键；读取时缺行即按契约默认值处理，写入走 upsert。
+///
+/// 三个开关默认 `false`、展示名默认 `NICKNAME`：在管理员明确打开之前，
+/// 官网不展示任何真实统计，也不会因为 M7 尚未接入而意外暴露内部数据。
+model PublicContentSetting {
+  id                             String   @id @db.VarChar(32)
+  publicRepairStatsEnabled       Boolean  @default(false) @map("public_repair_stats_enabled")
+  publicRepairStatsDetailEnabled Boolean  @default(false) @map("public_repair_stats_detail_enabled")
+  publicRankingsEnabled          Boolean  @default(false) @map("public_rankings_enabled")
+  rankingDisplayName             String   @default("NICKNAME") @map("ranking_display_name") @db.VarChar(16)
+  updatedByUserId                String?  @map("updated_by_user_id") @db.Char(36)
+  createdAt                      DateTime @map("created_at") @db.DateTime(3)
+  updatedAt                      DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy                      User?    @relation("PublicContentSettingUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("public_content_settings")
+}
+
+/// 维修活动（公开报名 / 成员接待）。派生状态不落库，按 UTC now 计算。
+model RepairActivity {
+  id             String                        @id @db.Char(36)
+  title          String                        @db.VarChar(120)
+  activityAt     DateTime                      @map("activity_at") @db.DateTime(3)
+  capacity       Int
+  signupOpensAt  DateTime                      @map("signup_opens_at") @db.DateTime(3)
+  signupClosesAt DateTime                      @map("signup_closes_at") @db.DateTime(3)
+  createdBy      String?                       @map("created_by") @db.Char(36)
+  createdAt      DateTime                      @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                      @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt      DateTime?                     @map("deleted_at") @db.DateTime(3)
+  creator        User?                         @relation("RepairActivityCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  registrations  RepairActivityRegistration[]
+  attendances    RepairActivityAttendance[]
+
+  @@index([deletedAt, activityAt], map: "repair_activities_deleted_activity_idx")
+  @@index([signupOpensAt, signupClosesAt], map: "repair_activities_signup_window_idx")
+  @@map("repair_activities")
+}
+
+/// 客户报名。同活动同手机号仅一条有效报名（应用层 + 事务内查重）。
+model RepairActivityRegistration {
+  id                      String         @id @db.Char(36)
+  activityId              String         @map("activity_id") @db.Char(36)
+  name                    String         @db.VarChar(40)
+  phone                   String         @db.VarChar(11)
+  phoneLast4              String         @map("phone_last4") @db.VarChar(4)
+  issueType               String         @map("issue_type") @db.VarChar(32)
+  /// 机型（issue #68）：选填，接待落单时带进维修记录。
+  deviceModel             String?        @map("device_model") @db.VarChar(60)
+  status                  String         @db.VarChar(32)
+  /// 报名时同意的免责声明版本与时间（issue #62 前端3）。历史报名没有签署动作，因此可空。
+  consentVersion          String?        @map("consent_version") @db.VarChar(16)
+  consentAcceptedAt       DateTime?      @map("consent_accepted_at") @db.DateTime(3)
+  checkedInAt             DateTime?      @map("checked_in_at") @db.DateTime(3)
+  servedAt                DateTime?      @map("served_at") @db.DateTime(3)
+  servedByMemberProfileId String?        @map("served_by_member_profile_id") @db.Char(36)
+  repairRecordId          String?        @unique(map: "repair_activity_regs_repair_record_uq") @map("repair_record_id") @db.Char(36)
+  createdAt               DateTime       @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt               DateTime?      @map("deleted_at") @db.DateTime(3)
+  activity                RepairActivity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  servedBy                MemberProfile? @relation("RepairActivityServedBy", fields: [servedByMemberProfileId], references: [id], onDelete: Restrict)
+  repairRecord            RepairRecord?  @relation(fields: [repairRecordId], references: [id], onDelete: Restrict)
+
+  @@index([activityId, phone], map: "repair_activity_regs_activity_phone_idx")
+  @@index([activityId, status, checkedInAt], map: "repair_activity_regs_activity_status_checked_idx")
+  @@index([activityId, deletedAt], map: "repair_activity_regs_activity_deleted_idx")
+  @@map("repair_activity_registrations")
+}
+
+/// 成员本场出勤。无出勤不可签到客户 / 不可接待。
+model RepairActivityAttendance {
+  id              String         @id @db.Char(36)
+  activityId      String         @map("activity_id") @db.Char(36)
+  memberProfileId String         @map("member_profile_id") @db.Char(36)
+  checkedInAt     DateTime       @map("checked_in_at") @db.DateTime(3)
+  activity        RepairActivity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  memberProfile   MemberProfile  @relation(fields: [memberProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([activityId, memberProfileId], map: "repair_activity_attendance_activity_member_uq")
+  @@index([memberProfileId], map: "repair_activity_attendance_member_idx")
+  @@map("repair_activity_attendances")
+}

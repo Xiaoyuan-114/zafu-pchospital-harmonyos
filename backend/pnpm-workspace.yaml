@@ -1,0 +1,7 @@
+minimumReleaseAge: 0
+
+allowBuilds:
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  unrs-resolver: true
