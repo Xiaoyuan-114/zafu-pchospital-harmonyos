@@ -108,6 +108,24 @@ export const ApiErrorCode = [
   "CASE_RECORD_NOT_ELIGIBLE",
   "CASE_STATE_CONFLICT",
   "CASE_NO_VALID_SOURCES",
+  // Issue #84 选购交易：商品与订单状态、库存、幂等与商品图上传。
+  "PRODUCT_NOT_FOUND",
+  "PRODUCT_DELISTED",
+  "OUT_OF_STOCK",
+  "SELF_PURCHASE",
+  "ORDER_NOT_FOUND",
+  // 409：订单当前状态不允许该动作（取消/完成竞争失败、已完成再取消等），客户端应刷新。
+  "INVALID_STATUS",
+  // 409：编辑商品时传了 `stock` 但与库存基线不符（已被订单调整），客户端应重新加载后再保存。
+  "STOCK_CONFLICT",
+  // 409：二手商品已产生订单，库存归订单链路管理，不再接受手动改库存。
+  "STOCK_ORDER_LOCKED",
+  // 405：POST 兼容入口缺少或带了错误的 `X-HTTP-Method-Override: PATCH` 头。
+  "METHOD_NOT_ALLOWED",
+  "PRODUCT_IMAGE_LIMIT_EXCEEDED",
+  "PRODUCT_IMAGE_TYPE_UNSUPPORTED",
+  "PRODUCT_IMAGE_TOO_LARGE",
+  "PRODUCT_IMAGE_STORAGE_FAILED",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -224,6 +242,21 @@ const defaultStatus: Record<ApiErrorCode, number> = {
   CASE_RECORD_NOT_ELIGIBLE: 409,
   CASE_STATE_CONFLICT: 409,
   CASE_NO_VALID_SOURCES: 409,
+  PRODUCT_NOT_FOUND: 404,
+  // 409 而不是 400：商品已下架/库存不足是当前状态不允许，客户端应刷新商品再决定。
+  PRODUCT_DELISTED: 409,
+  OUT_OF_STOCK: 409,
+  // 400：请求本身违反「不能买自己的商品」这一业务规则，重试同一请求也不会成功。
+  SELF_PURCHASE: 400,
+  ORDER_NOT_FOUND: 404,
+  INVALID_STATUS: 409,
+  STOCK_CONFLICT: 409,
+  STOCK_ORDER_LOCKED: 409,
+  METHOD_NOT_ALLOWED: 405,
+  PRODUCT_IMAGE_LIMIT_EXCEEDED: 400,
+  PRODUCT_IMAGE_TYPE_UNSUPPORTED: 415,
+  PRODUCT_IMAGE_TOO_LARGE: 413,
+  PRODUCT_IMAGE_STORAGE_FAILED: 500,
   INTERNAL_ERROR: 500,
 };
 export class AppError extends Error {
