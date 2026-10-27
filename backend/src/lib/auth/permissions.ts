@@ -85,6 +85,8 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     // 管理员可下架任意商品（#84），并天然拥有耗材维护权限。
     "shopping.consumable:manage",
     "shopping.product:moderate",
+    // 论坛管理权限只给 ADMIN，MEMBER 不因工作人员身份获得跨作者删除权。
+    "forum:moderate",
   ],
 };
 
