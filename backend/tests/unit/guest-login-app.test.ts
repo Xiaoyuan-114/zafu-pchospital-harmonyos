@@ -247,6 +247,22 @@ test("活动详情游客可读；报名登录/注册后保留活动目标，取�
   assert.equal((page.pathStack as unknown as { params: object[] }).params[1], target);
 });
 
+test("游客论坛详情可读；发帖与我的帖子均保留登录续接目标", () => {
+  const page = shell();
+  page.openRoute("forum-post", { postId: "p1" });
+  assert.equal(page.pathStack.names[0], "forum-post");
+  page.openRoute("forum-compose", null);
+  assert.equal(page.pathStack.names.join(","), "forum-post,login");
+  page.completeLogin({ home: "CUSTOMER" });
+  assert.equal(page.pathStack.names.join(","), "forum-post,forum-compose");
+
+  const mine = shell();
+  mine.openRoute("my-forum-posts", null);
+  assert.equal(mine.pathStack.names.join(","), "login");
+  mine.completeLogin({ home: "CUSTOMER" });
+  assert.equal(mine.pathStack.names.join(","), "my-forum-posts");
+});
+
 test("改密页强制标记只在自愿进入时复位；强制账号引导仍保持 true", () => {
   // 强制改密账号点业务路由：被引导到改密页，强制标记保持 true（返回键不可跳过）。
   const forced = shell();

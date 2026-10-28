@@ -97,6 +97,8 @@ const AUTH_ROUTES: string[] = [ROUTE_LOGIN, ROUTE_REGISTER_CUSTOMER, ROUTE_REGIS
  * 改 `Routes.ets` 里该路由值时必须同步本行；不一致时退化为「要求登录」，是安全方向。
  */
 const GUEST_KNOWLEDGE_ROUTE: string = 'knowledge-library';
+/** 与 ROUTE_FORUM_POST 同值；本文件的源码切片沙箱不解析新增路由 import。 */
+const GUEST_FORUM_ROUTE: string = 'forum-post';
 
 /**
  * `routeAfterLogin` 的兜底身份：只在内存身份缺失（理论上不会发生）时使用。
@@ -334,7 +336,7 @@ export struct HomePage {
     // 知识目录（#83 迁入服务）刻意**不**在这个放行名单里：先把账号送到改密页。
     // 注意这里没有写 `loginIntent`，所以改密成功后不会自动打开知识目录，
     // 而是回到 tab 根页（安全行为：半受限账号不直接进入知识页撞 403）。
-    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail') {
+    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
       this.openPasswordChange(true);
       return;
     }
@@ -342,7 +344,7 @@ export struct HomePage {
     // `GUEST_KNOWLEDGE_ROUTE` 是 `ROUTE_KNOWLEDGE_LIBRARY` 的字面量镜像，原因见该常量注释。
     if (!this.authenticated && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH
       && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== GUEST_KNOWLEDGE_ROUTE
-      && route !== 'shopping-goods-detail') {
+      && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
       const intent = new LoginIntent();
       intent.route = route;
       intent.param = param;
