@@ -48,12 +48,12 @@ function encodeId(id: string): string {
  * 在所有支持的 API 版本可用，与备案编辑的 POST 别名做法一致。
  */
 export class ShoppingService {
-  static async listProducts(category: string, page: number, pageSize: number): Promise<ApiPage<ShoppingProductView>> {
+  static async listProducts(category: string, query: string, page: number, pageSize: number): Promise<ApiPage<ShoppingProductView>> {
     const token: string = await optionalToken();
     const categoryQuery: string = category === '' ? '' : `&category=${encodeURIComponent(category)}`;
     return ApiClient.getPage<ShoppingProductView>(
       ApiConfig.getBaseUrl(),
-      `${PRODUCTS_PATH}?page=${page}&pageSize=${pageSize}${categoryQuery}`,
+      `${PRODUCTS_PATH}?q=${encodeURIComponent(query)}${categoryQuery}&page=${page}&pageSize=${pageSize}`,
       token
     );
   }

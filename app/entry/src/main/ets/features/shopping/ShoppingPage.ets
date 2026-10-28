@@ -59,10 +59,7 @@ export struct ShoppingPage {
   }
 
   private visibleProducts(): ShoppingProductView[] {
-    const keyword: string = this.keyword.trim().toLowerCase();
-    if (keyword === '') return this.products;
-    return this.products.filter((item: ShoppingProductView) =>
-      item.title.toLowerCase().includes(keyword) || item.description.toLowerCase().includes(keyword));
+    return this.products;
   }
 
   private newest(): ShoppingProductView | null {
@@ -90,7 +87,7 @@ export struct ShoppingPage {
     this.failed = false;
     this.errorText = '';
     try {
-      const first = await ShoppingService.listProducts(this.category, 1, PAGE_SIZE);
+      const first = await ShoppingService.listProducts(this.category, this.keyword.trim(), 1, PAGE_SIZE);
       if (generation !== this.requestGeneration) return;
       this.products = first.items;
       this.total = first.pagination.total;
@@ -98,7 +95,8 @@ export struct ShoppingPage {
       this.refreshBanner();
     } catch (error) {
       if (generation !== this.requestGeneration) return;
-      this.handleError(error);
+      if (this.products.length > 0) this.errorText = this.errorMessage(error);
+      else this.handleError(error);
     } finally {
       if (generation === this.requestGeneration) this.loading = false;
     }
@@ -109,7 +107,7 @@ export struct ShoppingPage {
     this.loadingMore = true;
     const generation: number = this.requestGeneration;
     try {
-      const next = await ShoppingService.listProducts(this.category, this.page + 1, PAGE_SIZE);
+      const next = await ShoppingService.listProducts(this.category, this.keyword.trim(), this.page + 1, PAGE_SIZE);
       if (generation !== this.requestGeneration) return;
       const merged: ShoppingProductView[] = [];
       for (const item of this.products) merged.push(item);
@@ -137,6 +135,16 @@ export struct ShoppingPage {
 
   private selectCategory(category: string): void {
     this.category = this.category === category ? '' : category;
+    this.reload();
+  }
+
+  private submitSearch(): void {
+    this.keyword = this.keyword.trim();
+    this.reload();
+  }
+
+  private clearSearch(): void {
+    this.keyword = '';
     this.reload();
   }
 
@@ -240,10 +248,10 @@ export struct ShoppingPage {
             Text('校园二手与维修耗材').fontSize(11).fontColor('#6F7A82')
           }.width('100%').height(48)
 
-          // 顶部整宽搜索：只过滤已经加载到本地的商品，避免把搜索词当成服务端全文检索。
+          // 顶部整宽搜索：提交、清空和分类切换都重新请求真实服务端。
           Row({ space: 8 }) {
             Image($r('app.media.home_search')).width(18).height(18).objectFit(ImageFit.Contain)
-            TextInput({ text: this.keyword, placeholder: '搜索已加载的商品' })
+            TextInput({ text: this.keyword, placeholder: '搜索全部在售商品' })
               .height(42)
               .layoutWeight(1)
               .backgroundColor(Color.Transparent)
@@ -251,11 +259,18 @@ export struct ShoppingPage {
               .onChange((value: string) => {
                 this.keyword = value;
               })
+              .onSubmit(() => {
+                this.submitSearch();
+              })
             if (this.keyword !== '') {
-              Text('清除').fontSize(12).fontColor($r('app.color.brand')).onClick(() => {
-                this.keyword = '';
+              Text('清空').fontSize(12).fontColor($r('app.color.brand')).onClick(() => {
+                this.clearSearch();
               })
             }
+            Button('搜索').fontSize(12).height(32).backgroundColor('#2474D4').fontColor(Color.White)
+              .onClick(() => {
+                this.submitSearch();
+              })
           }
           .width('100%')
           .padding({ left: 12, right: 12 })
@@ -336,7 +351,7 @@ export struct ShoppingPage {
           }
 
           if (this.keyword !== '') {
-            Text('搜索只过滤当前已加载的商品；继续上滑可加载更多。').fontSize(10).fontColor('#8C949A')
+            Text(`服务端搜索：${this.keyword}；清空可恢复全部商品。`).fontSize(10).fontColor('#8C949A')
           }
 
           if (this.staff) {
