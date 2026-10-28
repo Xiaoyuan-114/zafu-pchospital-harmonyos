@@ -158,6 +158,18 @@ export struct ProfilePage {
     return entries;
   }
 
+  private entryGroup(title: string): string {
+    if (title === '个人资料' || title === '修改密码' || title === '消息' || title === '进入工作台' || title === '管理') return '账号与工作';
+    if (title === '我的购物订单' || title === '我发布的商品' || title === '卖家订单') return '校园交易';
+    if (title === '我的帖子' || title === '收藏' || title === '我的报名') return '交流';
+    return '维修服务';
+  }
+
+  private entriesForGroup(group: string): ProfileEntry[] {
+    const entries: ProfileEntry[] = this.home === HOME_STAFF ? this.staffEntries() : this.customerEntries();
+    return entries.filter((entry: ProfileEntry) => this.entryGroup(entry.title) === group);
+  }
+
   private openEntry(entry: ProfileEntry): void {
     if (entry.route === '') {
       this.getUIContext().getPromptAction().showToast({ message: `${entry.title}暂未接入` });
@@ -250,6 +262,22 @@ export struct ProfilePage {
       .onClick(() => { this.loadStats(); })
   }
 
+  @Builder
+  entrySection(title: string) {
+    Column({ space: 12 }) {
+      Text(title).fontSize(17).fontWeight(FontWeight.Bold).width('100%')
+      Flex({ wrap: FlexWrap.Wrap }) {
+        ForEach(this.entriesForGroup(title), (entry: ProfileEntry) => {
+          ReferenceShortcut({
+            title: entry.title, icon: entry.icon, note: entry.note,
+            onSelect: (): void => { this.openEntry(entry); }
+          })
+        }, (entry: ProfileEntry) => entry.title)
+      }.width('100%')
+    }.width('100%').padding({ left: 12, right: 12, top: 18, bottom: 16 })
+      .backgroundColor(Color.White).borderRadius(20)
+  }
+
   build() {
     Scroll() {
       Column({ space: 14 }) {
@@ -264,18 +292,10 @@ export struct ProfilePage {
         }.width('100%').height(50)
         this.profileCard()
         if (this.home !== HOME_STAFF) { this.statsSection() }
-        Column({ space: 20 }) {
-          Text('我的信息').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
-          Flex({ wrap: FlexWrap.Wrap }) {
-            ForEach(this.home === HOME_STAFF ? this.staffEntries() : this.customerEntries(), (entry: ProfileEntry) => {
-              ReferenceShortcut({
-                title: entry.title, icon: entry.icon, note: entry.note,
-                onSelect: (): void => { this.openEntry(entry); }
-              })
-            }, (entry: ProfileEntry) => entry.title)
-          }.width('100%')
-        }.width('100%').padding({ left: 12, right: 12, top: 24, bottom: 20 })
-          .backgroundColor(Color.White).borderRadius(20)
+        this.entrySection('维修服务')
+        this.entrySection('校园交易')
+        this.entrySection('交流')
+        this.entrySection('账号与工作')
         Column({ space: 18 }) {
           Text('常用服务').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Row() {

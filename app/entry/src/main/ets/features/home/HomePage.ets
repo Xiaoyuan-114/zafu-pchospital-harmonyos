@@ -184,6 +184,8 @@ export struct HomePage {
   @State pathStack: NavPathStack = new NavPathStack();
   @State currentTab: number = TAB_INDEX_HOME;
   @State activityRevision: number = 0;
+  @State forumChannel: string = '活动';
+  @State forumRefreshVersion: number = 0;
   @State recordsRevision: number = 0;
   @State workbenchRevision: number = 0;
   @State favoritesRevision: number = 0;
@@ -758,6 +760,12 @@ export struct HomePage {
           TabContent() {
             HomeTab({
               onActivities: (): void => { this.selectNavigation(1); },
+              onShopping: (): void => { this.selectNavigation(3); },
+              onForum: (): void => {
+                this.forumChannel = '论坛';
+                this.forumRefreshVersion += 1;
+                this.selectNavigation(1);
+              },
               displayName: this.displayName,
               roleText: this.roleText,
               home: this.home,
@@ -773,6 +781,8 @@ export struct HomePage {
 
           TabContent() {
             ActivityPage({
+              channel: this.forumChannel,
+              forumRefreshVersion: this.forumRefreshVersion,
               onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
               onLogin: (): void => { this.openRoute(ROUTE_FORUM_COMPOSE, null); },
               onSessionExpired: (): void => { this.expireSession(); }

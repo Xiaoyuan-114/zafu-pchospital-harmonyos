@@ -24,9 +24,9 @@ export struct ActivityPage {
   onOpen: (route: string, param: Object | null) => void = () => {};
   onLogin: () => void = () => {};
   onSessionExpired: () => void = () => {};
-  @State channel: string = '活动';
+  @Prop channel: string = '活动';
   @State query: string = '';
-  @State forumRefreshVersion: number = 0;
+  @Prop forumRefreshVersion: number = 0;
   @State activities: RepairActivity[] = [];
   @State loading: boolean = false;
   @State errorText: string = '';
