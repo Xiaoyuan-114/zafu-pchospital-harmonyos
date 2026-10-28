@@ -556,3 +556,143 @@ test("删除评论只在服务端确认后移除本地项", async () => {
   assert.deepEqual(detail.comments, []);
   assert.equal(detail.deleteCommentId, "");
 });
+
+interface ComposeApi {
+  savedId: string;
+  category: string;
+  title: string;
+  body: string;
+  pending: Array<{ fileName: string; mimeType: string; data: ArrayBuffer; uploadKey: string }>;
+  createRequestKey: string;
+  submitting: boolean;
+  errorText: string;
+  savedPostId: string;
+  submit(): Promise<void>;
+  pickImages(): Promise<void>;
+}
+interface MineApi {
+  posts: FeedPost[];
+  page: number;
+  totalPages: number;
+  loading: boolean;
+  errorText: string;
+  load(): Promise<void>;
+  loadMore(): Promise<void>;
+}
+
+function composeHarness() {
+  const source = readFileSync(
+    "../app/entry/src/main/ets/features/forum/ForumComposePage.ets",
+    "utf8",
+  );
+  const start = source.indexOf("export struct ForumComposePage");
+  const state = source
+    .slice(start, source.indexOf("  @Builder", start))
+    .replace("export struct ForumComposePage", "class ForumComposePage")
+    .replace(/@(State|Prop)\s+/g, "")
+    .replace(/@Watch\('[^']+'\)\s*/g, "")
+    + "\nnew ForumComposePage();";
+  const code = ts.transpileModule(state, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const createCalls: unknown[] = [];
+  const uploadCalls: unknown[][] = [];
+  const compose = runInNewContext(code, {
+    ForumService: {
+      newCreateRequestKey: () => "create-once",
+      newUploadKey: () => "upload-once",
+      createPost: async (draft: unknown) => {
+        createCalls.push(draft);
+        return { id: "created-post" };
+      },
+      uploadImages: async (id: string, images: unknown[], keys: string[]) => {
+        uploadCalls.push([id, images, keys]);
+        return [];
+      },
+    },
+    PhotoPicker: { pick: async () => [] },
+    SessionService: { sessionStamp: () => "1|user-a" },
+    ApiRequestError: class extends Error {},
+    isSessionExpiredCode: () => false,
+    FORUM_CATEGORY_GENERAL: "GENERAL",
+    FORUM_CATEGORY_EXPERIENCE: "EXPERIENCE",
+    FORUM_CATEGORY_QUESTION: "QUESTION",
+  }) as ComposeApi;
+  compose.category = "GENERAL";
+  compose.title = "真实标题";
+  compose.body = "真实正文";
+  return { compose, createCalls, uploadCalls };
+}
+
+test("已建帖上传重试不重复创建，上传键稳定且成功后清空", async () => {
+  const { compose, createCalls, uploadCalls } = composeHarness();
+  compose.savedId = "post-1";
+  compose.createRequestKey = "create-once";
+  const image = { fileName: "one.png", mimeType: "image/png", data: new ArrayBuffer(1), uploadKey: "upload-once" };
+  compose.pending = [image];
+  await compose.submit();
+  assert.equal(createCalls.length, 0);
+  assert.equal(uploadCalls[0][0], "post-1");
+  assert.equal((uploadCalls[0][1] as unknown[])[0], image);
+  assert.deepEqual(Array.from(uploadCalls[0][2] as string[]), ["upload-once"]);
+  assert.equal(compose.pending.length, 0);
+  assert.equal(compose.savedPostId, "post-1");
+});
+
+test("首次发布只生成一个创建键并进入已保存详情", async () => {
+  const { compose, createCalls } = composeHarness();
+  await compose.submit();
+  assert.equal(createCalls.length, 1);
+  const draft = createCalls[0] as Record<string, string>;
+  assert.equal(draft.category, "GENERAL");
+  assert.equal(draft.title, "真实标题");
+  assert.equal(draft.body, "真实正文");
+  assert.equal(draft.createRequestKey, "create-once");
+  assert.deepEqual(Object.keys(draft).sort(), ["body", "category", "createRequestKey", "title"]);
+  assert.equal(compose.savedPostId, "created-post");
+  assert.equal(compose.title, "");
+  assert.equal(compose.body, "");
+});
+
+function mineHarness() {
+  const source = readFileSync(
+    "../app/entry/src/main/ets/features/forum/MyForumPostsPage.ets",
+    "utf8",
+  );
+  const start = source.indexOf("export struct MyForumPostsPage");
+  const state = source
+    .slice(start, source.indexOf("  @Builder", start))
+    .replace("export struct MyForumPostsPage", "class MyForumPostsPage")
+    .replace(/@(State|Prop)\s+/g, "")
+    .replace(/@Watch\('[^']+'\)\s*/g, "")
+    + "\nnew MyForumPostsPage();";
+  const code = ts.transpileModule(state, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const calls: number[] = [];
+  const pages: FeedPage[] = [];
+  const mine = runInNewContext(code, {
+    ForumService: {
+      listMine: async (page: number) => {
+        calls.push(page);
+        return pages.shift() ?? { items: [], pagination: { page, pageSize: 20, total: 0, totalPages: 0 } };
+      },
+    },
+    ApiRequestError: class extends Error {},
+    isSessionExpiredCode: () => false,
+    ROUTE_FORUM_POST: "forum-post",
+  }) as MineApi;
+  return { mine, calls, pages };
+}
+
+test("我的帖子只按服务端本人分页读取并保留分页失败内容", async () => {
+  const { mine, calls, pages } = mineHarness();
+  pages.push(
+    { items: [{ id: "mine-1", title: "本人帖子" }], pagination: { page: 1, pageSize: 20, total: 2, totalPages: 2 } },
+    { items: [{ id: "mine-2", title: "第二页" }], pagination: { page: 2, pageSize: 20, total: 2, totalPages: 2 } },
+  );
+  await mine.load();
+  await mine.loadMore();
+  assert.deepEqual(calls, [1, 2]);
+  assert.deepEqual(mine.posts.map((post) => post.id), ["mine-1", "mine-2"]);
+});

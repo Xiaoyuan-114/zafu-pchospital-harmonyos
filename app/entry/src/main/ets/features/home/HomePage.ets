@@ -51,8 +51,10 @@ import { SellerOrdersPage } from '../shopping/SellerOrdersPage';
 import { MyProductsPage } from '../shopping/MyProductsPage';
 import { ShoppingGoodsParam } from '../shopping/ShoppingTypes';
 import { ROUTE_SHOPPING_GOODS_DETAIL, ROUTE_SHOPPING_GOODS_EDIT, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS, ROUTE_SHOPPING_MY_PRODUCTS } from '../../core/ui/Routes';
-import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST } from '../../core/ui/Routes';
+import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST, ROUTE_MY_FORUM_POSTS } from '../../core/ui/Routes';
 import { ForumPostDetailPage } from '../forum/ForumPostDetailPage';
+import { ForumComposePage } from '../forum/ForumComposePage';
+import { MyForumPostsPage } from '../forum/MyForumPostsPage';
 import { ForumPostParam } from '../forum/ForumContract';
 import { HomeTab } from './HomeTab';
 import { ProfilePage } from '../profile/ProfilePage';
@@ -432,6 +434,22 @@ export struct HomePage {
           onCancel: (): void => { this.cancelLogin(); },
           onSessionExpired: (): void => { this.expireSession(); },
           onBusyChange: (busy: boolean): void => { this.passwordChangeBusy = busy; }
+        });
+      } else if (name === ROUTE_FORUM_COMPOSE) {
+        ForumComposePage({
+          onSaved: (postId: string): void => {
+            this.pathStack.pop();
+            this.activityRevision += 1;
+            const target: ForumPostParam = { postId: postId };
+            this.openRoute(ROUTE_FORUM_POST, target);
+          },
+          onSessionExpired: (): void => { this.expireSession(); }
+        });
+      } else if (name === ROUTE_MY_FORUM_POSTS) {
+        MyForumPostsPage({
+          refreshVersion: this.activityRevision,
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+          onSessionExpired: (): void => { this.expireSession(); }
         });
       } else if (name === ROUTE_FORUM_POST) {
         ForumPostDetailPage({
