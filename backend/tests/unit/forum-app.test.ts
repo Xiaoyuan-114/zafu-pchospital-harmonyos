@@ -268,3 +268,132 @@ test("读取令牌期间会话代次变化时放弃写请求，不把旧令牌�
   });
   assert.equal(calls.length, 0);
 });
+
+type FeedPost = { id: string; title: string };
+type FeedPage = {
+  items: FeedPost[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+};
+type FeedRequest = {
+  category: string;
+  query: string;
+  page: number;
+  resolve: (page: FeedPage) => void;
+  reject: (error: Error) => void;
+};
+interface ForumFeedApi {
+  category: string;
+  query: string;
+  posts: FeedPost[];
+  page: number;
+  totalPages: number;
+  errorText: string;
+  load(): Promise<void>;
+  loadMore(): Promise<void>;
+  search(): Promise<void>;
+  clearSearch(): Promise<void>;
+  selectCategory(category: string): Promise<void>;
+}
+
+/** 执行真实 ForumFeed 状态方法；ArkUI 构建区和图片组件不进入沙箱。 */
+function feedHarness() {
+  const source = readFileSync(
+    "../app/entry/src/main/ets/features/forum/ForumFeed.ets",
+    "utf8",
+  );
+  const start = source.indexOf("export struct ForumFeed");
+  const state = source
+    .slice(start, source.indexOf("  @Builder", start))
+    .replace("export struct ForumFeed", "class ForumFeed")
+    .replace(/@(State|Prop)\s+/g, "")
+    .replace(/@Watch\('[^']+'\)\s*/g, "")
+    + "\nnew ForumFeed();";
+  const code = ts.transpileModule(state, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const requests: FeedRequest[] = [];
+  const feed = runInNewContext(code, {
+    ForumService: {
+      listPosts: (category: string, query: string, page: number) =>
+        new Promise<FeedPage>((resolve, reject) => {
+          requests.push({ category, query, page, resolve, reject });
+        }),
+    },
+    ApiRequestError: class extends Error {},
+    isSessionExpiredCode: () => false,
+    FORUM_CATEGORY_GENERAL: "GENERAL",
+    FORUM_CATEGORY_EXPERIENCE: "EXPERIENCE",
+    FORUM_CATEGORY_QUESTION: "QUESTION",
+    ROUTE_FORUM_POST: "forum-post",
+    ROUTE_FORUM_COMPOSE: "forum-compose",
+  }) as ForumFeedApi;
+  const result = (page: number, ids: string[], totalPages = 1): FeedPage => ({
+    items: ids.map((id) => ({ id, title: `帖子 ${id}` })),
+    pagination: { page, pageSize: 20, total: ids.length, totalPages },
+  });
+  return { feed, requests, result };
+}
+
+test("论坛新关键词请求不会被迟到旧响应覆盖", async () => {
+  const { feed, requests, result } = feedHarness();
+  feed.query = "硬盘";
+  const first = feed.load();
+  feed.query = "网络";
+  const second = feed.load();
+  assert.deepEqual(requests.map((request) => request.query), ["硬盘", "网络"]);
+
+  requests[0].resolve(result(1, ["old"]));
+  await first;
+  assert.notDeepEqual(feed.posts, [{ id: "old", title: "帖子 old" }]);
+  requests[1].resolve(result(1, ["new"]));
+  await second;
+  assert.deepEqual(feed.posts, [{ id: "new", title: "帖子 new" }]);
+  assert.equal(feed.page, 1);
+});
+
+test("论坛分页失败保留已加载内容，重试只请求下一页", async () => {
+  const { feed, requests, result } = feedHarness();
+  feed.query = "清灰";
+  const first = feed.load();
+  requests[0].resolve(result(1, ["p1", "p2"], 3));
+  await first;
+
+  const second = feed.loadMore();
+  requests[1].reject(new Error("网络中断"));
+  await second;
+  assert.equal(feed.posts.length, 2);
+  assert.equal(feed.page, 1);
+  assert.equal(feed.errorText, "论坛加载失败，请重试");
+
+  const retry = feed.loadMore();
+  requests[2].resolve(result(2, ["p3"], 3));
+  await retry;
+  assert.deepEqual(requests.map((request) => [request.query, request.page]), [
+    ["清灰", 1],
+    ["清灰", 2],
+    ["清灰", 2],
+  ]);
+  assert.deepEqual(feed.posts.map((post) => post.id), ["p1", "p2", "p3"]);
+});
+
+test("论坛搜索提交、清空和分类切换都使用最新真实查询", async () => {
+  const { feed, requests, result } = feedHarness();
+  feed.query = "  固态 硬盘  ";
+  const search = feed.search();
+  assert.equal(requests[0].query, "固态 硬盘");
+  requests[0].resolve(result(1, [], 0));
+  await search;
+  assert.equal(feed.posts.length, 0);
+
+  const cleared = feed.clearSearch();
+  requests[1].resolve(result(1, [], 0));
+  await cleared;
+  const category = feed.selectCategory("QUESTION");
+  requests[2].resolve(result(1, [], 0));
+  await category;
+  assert.deepEqual(requests.map((request) => [request.category, request.query]), [
+    ["GENERAL", "固态 硬盘"],
+    ["GENERAL", ""],
+    ["QUESTION", ""],
+  ]);
+});

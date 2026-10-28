@@ -51,6 +51,7 @@ import { SellerOrdersPage } from '../shopping/SellerOrdersPage';
 import { MyProductsPage } from '../shopping/MyProductsPage';
 import { ShoppingGoodsParam } from '../shopping/ShoppingTypes';
 import { ROUTE_SHOPPING_GOODS_DETAIL, ROUTE_SHOPPING_GOODS_EDIT, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS, ROUTE_SHOPPING_MY_PRODUCTS } from '../../core/ui/Routes';
+import { ROUTE_FORUM_COMPOSE } from '../../core/ui/Routes';
 import { HomeTab } from './HomeTab';
 import { ProfilePage } from '../profile/ProfilePage';
 import { PersonalProfilePage } from '../profile/PersonalProfilePage';
@@ -739,7 +740,11 @@ export struct HomePage {
           }
 
           TabContent() {
-            ActivityPage({ onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); } })
+            ActivityPage({
+              onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+              onLogin: (): void => { this.openRoute(ROUTE_FORUM_COMPOSE, null); },
+              onSessionExpired: (): void => { this.expireSession(); }
+            })
           }
 
           TabContent() {
