@@ -36,6 +36,8 @@ export struct ShoppingPage {
   @State page: number = 1;
   @State keyword: string = '';
   @State category: string = '';
+  @State appliedKeyword: string = '';
+  @State appliedCategory: string = '';
   @State loading: boolean = false;
   @State loadingMore: boolean = false;
   @State failed: boolean = false;
@@ -62,6 +64,10 @@ export struct ShoppingPage {
     return this.products;
   }
 
+  private retainedErrorVisible(): boolean {
+    return this.errorText !== '' && !this.failed && this.products.length > 0;
+  }
+
   private newest(): ShoppingProductView | null {
     return this.products.length > 0 ? this.products[0] : null;
   }
@@ -86,17 +92,20 @@ export struct ShoppingPage {
     this.loadingMore = false;
     this.failed = false;
     this.errorText = '';
+    const sentCategory: string = this.category;
+    const sentKeyword: string = this.keyword.trim();
     try {
-      const first = await ShoppingService.listProducts(this.category, this.keyword.trim(), 1, PAGE_SIZE);
+      const first = await ShoppingService.listProducts(sentCategory, sentKeyword, 1, PAGE_SIZE);
       if (generation !== this.requestGeneration) return;
       this.products = first.items;
       this.total = first.pagination.total;
       this.page = 1;
+      this.appliedCategory = sentCategory;
+      this.appliedKeyword = sentKeyword;
       this.refreshBanner();
     } catch (error) {
       if (generation !== this.requestGeneration) return;
-      if (this.products.length > 0) this.errorText = this.errorMessage(error);
-      else this.handleError(error);
+      this.handleError(error);
     } finally {
       if (generation === this.requestGeneration) this.loading = false;
     }
@@ -107,7 +116,7 @@ export struct ShoppingPage {
     this.loadingMore = true;
     const generation: number = this.requestGeneration;
     try {
-      const next = await ShoppingService.listProducts(this.category, this.keyword.trim(), this.page + 1, PAGE_SIZE);
+      const next = await ShoppingService.listProducts(this.appliedCategory, this.appliedKeyword, this.page + 1, PAGE_SIZE);
       if (generation !== this.requestGeneration) return;
       const merged: ShoppingProductView[] = [];
       for (const item of this.products) merged.push(item);
@@ -127,7 +136,7 @@ export struct ShoppingPage {
       this.refreshBanner();
     } catch (error) {
       if (generation !== this.requestGeneration) return;
-      this.errorText = this.errorMessage(error);
+      this.handleError(error);
     } finally {
       if (generation === this.requestGeneration) this.loadingMore = false;
     }
@@ -135,6 +144,11 @@ export struct ShoppingPage {
 
   private selectCategory(category: string): void {
     this.category = this.category === category ? '' : category;
+    this.reload();
+  }
+
+  private clearAppliedCategory(): void {
+    this.category = '';
     this.reload();
   }
 
@@ -159,7 +173,7 @@ export struct ShoppingPage {
       this.onSessionExpired();
       return;
     }
-    this.failed = true;
+    this.failed = this.products.length === 0;
     this.errorText = this.errorMessage(error);
   }
 
@@ -287,7 +301,7 @@ export struct ShoppingPage {
               this.bannerSlide(
                 `${this.total} 件在售`,
                 '二手电脑配件与维修耗材，线下付款取货；本应用不承诺线上支付。',
-                this.category === '' ? '全部分类' : `当前筛选：${shoppingCategoryLabel(this.category)}`,
+                this.appliedCategory === '' ? '全部分类' : `当前筛选：${shoppingCategoryLabel(this.appliedCategory)}`,
                 '#DCEBFA'
               )
             }
@@ -307,12 +321,12 @@ export struct ShoppingPage {
 
           Row({ space: 8 }) {
             Text('最新上架').fontSize(20).fontWeight(FontWeight.Bold).fontColor('#101416').layoutWeight(1)
-            if (this.category !== '') {
-              Text(`${shoppingCategoryLabel(this.category)} ×`).fontSize(11).fontColor('#6F5B35')
+            if (this.appliedCategory !== '') {
+              Text(`${shoppingCategoryLabel(this.appliedCategory)} ×`).fontSize(11).fontColor('#6F5B35')
                 .padding({ left: 9, right: 9, top: 4, bottom: 4 })
                 .backgroundColor('#F3E8D0').borderRadius(12)
                 .onClick(() => {
-                  this.selectCategory(this.category);
+                  this.clearAppliedCategory();
                 })
             }
           }.width('100%')
@@ -331,7 +345,7 @@ export struct ShoppingPage {
             }.width('100%').height(160).justifyContent(FlexAlign.Center)
           } else if (this.visibleProducts().length === 0) {
             Column() {
-              DetailEmptyOrders({ text: this.keyword === '' ? '暂无在售商品' : '没有匹配的在售商品' })
+              DetailEmptyOrders({ text: this.appliedKeyword === '' ? '暂无在售商品' : '没有匹配的在售商品' })
               Button('发布商品').height(40).fontSize(14).fontColor(Color.White)
                 .backgroundColor($r('app.color.brand'))
                 .onClick(() => {
@@ -344,14 +358,26 @@ export struct ShoppingPage {
                 this.productCard(item)
               }, (item: ShoppingProductView) => item.id)
             }.width('100%')
+            if (this.retainedErrorVisible()) {
+              Column({ space: 8 }) {
+                Text(this.errorText).fontSize(13).fontColor($r('app.color.danger')).width('100%')
+                Button('重试').height(32).fontSize(12).onClick(() => {
+                  this.reload();
+                })
+              }
+              .width('100%')
+              .padding(12)
+              .backgroundColor('#FFF2F0')
+              .borderRadius(12)
+            }
             if (this.products.length < this.total) {
               Text(this.loadingMore ? '加载中…' : '继续上滑加载更多').fontSize(11).fontColor('#8C949A')
                 .width('100%').textAlign(TextAlign.Center).padding({ top: 4, bottom: 8 })
             }
           }
 
-          if (this.keyword !== '') {
-            Text(`服务端搜索：${this.keyword}；清空可恢复全部商品。`).fontSize(10).fontColor('#8C949A')
+          if (this.appliedKeyword !== '') {
+            Text(`服务端搜索：${this.appliedKeyword}；清空可恢复全部商品。`).fontSize(10).fontColor('#8C949A')
           }
 
           if (this.staff) {
