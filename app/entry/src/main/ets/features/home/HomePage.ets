@@ -51,7 +51,9 @@ import { SellerOrdersPage } from '../shopping/SellerOrdersPage';
 import { MyProductsPage } from '../shopping/MyProductsPage';
 import { ShoppingGoodsParam } from '../shopping/ShoppingTypes';
 import { ROUTE_SHOPPING_GOODS_DETAIL, ROUTE_SHOPPING_GOODS_EDIT, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS, ROUTE_SHOPPING_MY_PRODUCTS } from '../../core/ui/Routes';
-import { ROUTE_FORUM_COMPOSE } from '../../core/ui/Routes';
+import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST } from '../../core/ui/Routes';
+import { ForumPostDetailPage } from '../forum/ForumPostDetailPage';
+import { ForumPostParam } from '../forum/ForumContract';
 import { HomeTab } from './HomeTab';
 import { ProfilePage } from '../profile/ProfilePage';
 import { PersonalProfilePage } from '../profile/PersonalProfilePage';
@@ -430,6 +432,18 @@ export struct HomePage {
           onCancel: (): void => { this.cancelLogin(); },
           onSessionExpired: (): void => { this.expireSession(); },
           onBusyChange: (busy: boolean): void => { this.passwordChangeBusy = busy; }
+        });
+      } else if (name === ROUTE_FORUM_POST) {
+        ForumPostDetailPage({
+          param: param as ForumPostParam,
+          authenticated: this.authenticated && !this.mustChangePassword,
+          onBack: (): void => { this.pathStack.pop(); },
+          onLogin: (): void => {
+            if (this.mustChangePassword) this.openPasswordChange(true);
+            else this.requestLogin(new LoginIntent());
+          },
+          onChanged: (): void => { this.activityRevision += 1; },
+          onSessionExpired: (): void => { this.expireSession(); }
         });
       } else if (name === ROUTE_ACTIVITY_DETAIL || name === ROUTE_ACTIVITY_SIGNUP) {
         ActivityDetailPage({ param: param as ActivityParam, signup: name === ROUTE_ACTIVITY_SIGNUP, refreshVersion: this.activityRevision,

@@ -301,10 +301,10 @@ function feedHarness() {
     "../app/entry/src/main/ets/features/forum/ForumFeed.ets",
     "utf8",
   );
-  const start = source.indexOf("export struct ForumFeed");
+  const start = source.indexOf("struct ForumFeed");
   const state = source
     .slice(start, source.indexOf("  @Builder", start))
-    .replace("export struct ForumFeed", "class ForumFeed")
+    .replace("struct ForumFeed", "class ForumFeed")
     .replace(/@(State|Prop)\s+/g, "")
     .replace(/@Watch\('[^']+'\)\s*/g, "")
     + "\nnew ForumFeed();";
@@ -396,4 +396,163 @@ test("论坛搜索提交、清空和分类切换都使用最新真实查询", as
     ["GENERAL", ""],
     ["QUESTION", ""],
   ]);
+});
+
+type DetailCall = { method: string; args: unknown[] };
+interface DetailApi {
+  param: { postId: string };
+  authenticated: boolean;
+  disposed: boolean;
+  navigated: boolean;
+  detail: { id: string; actions: { canDelete: boolean } } | null;
+  comments: Array<{ id: string; body: string }>;
+  commentDraft: string;
+  commentSending: boolean;
+  deletePostOpen: boolean;
+  deleteCommentId: string;
+  errorText: string;
+  aboutToDisappear(): void;
+  load(): Promise<void>;
+  sendComment(): Promise<void>;
+  retryComment(): Promise<void>;
+  confirmDeletePost(): Promise<void>;
+  confirmDeleteComment(): Promise<void>;
+}
+
+/** 执行真实详情页状态与写请求生命周期；不实例化 ArkUI。 */
+function detailHarness() {
+  const source = readFileSync(
+    "../app/entry/src/main/ets/features/forum/ForumPostDetailPage.ets",
+    "utf8",
+  );
+  const start = source.indexOf("export struct ForumPostDetailPage");
+  const state = source
+    .slice(start, source.indexOf("  @Builder", start))
+    .replace("export struct ForumPostDetailPage", "class ForumPostDetailPage")
+    .replace(/@(State|Prop)\s+/g, "")
+    .replace(/@Watch\('[^']+'\)\s*/g, "")
+    + "\nnew ForumPostDetailPage();";
+  const code = ts.transpileModule(state, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const calls: DetailCall[] = [];
+  let commentKey = "";
+  let releaseComment!: () => void;
+  let sessionStamp = "1|user-a";
+  let nextKey = 0;
+  let postDeleteError: Error | null = null;
+  const detail = runInNewContext(code, {
+    ForumService: {
+      detail: async (id: string) => {
+        calls.push({ method: "detail", args: [id] });
+        return {
+          id,
+          category: "GENERAL",
+          title: "真实帖子",
+          body: "正文",
+          author: { id: "a", displayName: "客户" },
+          images: [],
+          commentCount: 0,
+          createdAt: "2026-10-28T00:00:00.000Z",
+          updatedAt: "2026-10-28T00:00:00.000Z",
+          actions: { canDelete: true, canUploadImages: true, canComment: true },
+        };
+      },
+      listComments: async () => ({ items: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } }),
+      newCreateRequestKey: () => `comment-key-${++nextKey}`,
+      createComment: (id: string, body: string, key: string) => {
+        calls.push({ method: "comment", args: [id, body, key] });
+        commentKey = key;
+        return new Promise<void>((resolve) => {
+          releaseComment = () => {
+            calls.push({ method: "comment-resolved", args: [] });
+            resolve();
+          };
+        });
+      },
+      deletePost: async (id: string) => {
+        calls.push({ method: "delete-post", args: [id] });
+        if (postDeleteError !== null) throw postDeleteError;
+      },
+      deleteComment: async (id: string) => {
+        calls.push({ method: "delete-comment", args: [id] });
+      },
+    },
+    SessionService: { sessionStamp: () => sessionStamp },
+    ApiRequestError: class extends Error {
+      constructor(public code: string, message: string) {
+        super(message);
+      }
+    },
+    isSessionExpiredCode: () => false,
+  }) as DetailApi;
+  detail.param = { postId: "post-1" };
+  detail.authenticated = true;
+  if (postDeleteError === null) {
+    detail.detail = {
+      id: "post-1",
+      actions: { canDelete: true },
+    };
+  }
+  return {
+    detail,
+    calls,
+    commentKey: () => commentKey,
+    releaseComment: () => releaseComment(),
+    setSessionStamp: (value: string) => {
+      sessionStamp = value;
+    },
+    setPostDeleteError: (error: Error | null) => {
+      postDeleteError = error;
+    },
+  };
+}
+
+test("同一评论提交与重试复用幂等键，离开后的迟到回调不导航", async () => {
+  const { detail, calls, commentKey, releaseComment } = detailHarness();
+  detail.commentDraft = "同一条真实评论";
+  const sending = detail.sendComment();
+  assert.equal(calls.filter((call) => call.method === "comment").length, 1);
+  const retry = detail.retryComment();
+  assert.equal(calls.filter((call) => call.method === "comment").length, 1);
+  assert.equal((calls[0].args[2] as string) === commentKey(), true);
+  detail.aboutToDisappear();
+  releaseComment();
+  await Promise.all([sending, retry]);
+  assert.equal(detail.navigated, false);
+  assert.equal(detail.disposed, true);
+});
+
+test("删除帖子成功才返回并触发刷新；404 不保留旧正文", async () => {
+  const { detail, calls } = detailHarness();
+  await detail.load();
+  assert.equal(detail.detail?.id, "post-1");
+  detail.deletePostOpen = true;
+  await detail.confirmDeletePost();
+  assert.deepEqual(calls.at(-1), { method: "delete-post", args: ["post-1"] });
+  assert.equal(detail.navigated, true);
+  assert.equal(detail.detail, null);
+
+  const second = detailHarness();
+  const RequestError = class extends Error {
+    constructor(public code: string, message: string) {
+      super(message);
+    }
+  };
+  second.setPostDeleteError(new RequestError("FORUM_POST_NOT_FOUND", "帖子不存在或已删除"));
+  second.detail.detail = { id: "missing", actions: { canDelete: true } };
+  await second.detail.confirmDeletePost();
+  assert.equal(second.detail.detail, null);
+  assert.equal(second.detail.navigated, false);
+});
+
+test("删除评论只在服务端确认后移除本地项", async () => {
+  const { detail, calls } = detailHarness();
+  await detail.load();
+  detail.comments = [{ id: "comment-1", body: "保留到确认成功" }];
+  detail.deleteCommentId = "comment-1";
+  await detail.confirmDeleteComment();
+  assert.deepEqual(calls.at(-1), { method: "delete-comment", args: ["comment-1"] });
+  assert.deepEqual(detail.comments, []);
+  assert.equal(detail.deleteCommentId, "");
 });

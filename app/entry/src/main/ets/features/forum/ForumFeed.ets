@@ -99,7 +99,7 @@ struct ForumPostImage {
 
 /** 活动 Tab 内的真实论坛信息流；查询、分页与活动数据完全分离。 */
 @Component
-export struct ForumFeed {
+struct ForumFeed {
   @Prop @Watch('onRefreshVersionChanged') refreshVersion: number = 0;
   onOpen: (route: string, param: Object | null) => void = () => {};
   onLogin: () => void = () => {};
@@ -337,3 +337,5 @@ export struct ForumFeed {
     .alignItems(HorizontalAlign.Start)
   }
 }
+
+export { ForumFeed, ForumPostImage };
