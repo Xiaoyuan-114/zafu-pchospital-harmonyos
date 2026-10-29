@@ -442,6 +442,7 @@ export struct HomePage {
           onSaved: (postId: string): void => {
             this.pathStack.pop();
             this.activityRevision += 1;
+            this.forumRefreshVersion += 1;
             const target: ForumPostParam = { postId: postId };
             this.openRoute(ROUTE_FORUM_POST, target);
           },
@@ -462,7 +463,10 @@ export struct HomePage {
             if (this.mustChangePassword) this.openPasswordChange(true);
             else this.requestLogin(new LoginIntent());
           },
-          onChanged: (): void => { this.activityRevision += 1; },
+          onChanged: (): void => {
+            this.activityRevision += 1;
+            this.forumRefreshVersion += 1;
+          },
           onSessionExpired: (): void => { this.expireSession(); }
         });
       } else if (name === ROUTE_ACTIVITY_DETAIL || name === ROUTE_ACTIVITY_SIGNUP) {

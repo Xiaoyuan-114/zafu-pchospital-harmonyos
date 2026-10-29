@@ -696,3 +696,49 @@ test("我的帖子只按服务端本人分页读取并保留分页失败内容",
   assert.deepEqual(calls, [1, 2]);
   assert.deepEqual(mine.posts.map((post) => post.id), ["mine-1", "mine-2"]);
 });
+
+test("发帖、评论和删除回调同时刷新主论坛列表与我的帖子", () => {
+  const source = readFileSync("../app/entry/src/main/ets/features/home/HomePage.ets", "utf8");
+  const compose = source.slice(
+    source.indexOf("      } else if (name === ROUTE_FORUM_COMPOSE)"),
+    source.indexOf("      } else if (name === ROUTE_MY_FORUM_POSTS)"),
+  );
+  const detail = source.slice(
+    source.indexOf("      } else if (name === ROUTE_FORUM_POST)"),
+    source.indexOf("      } else if (name === ROUTE_ACTIVITY_DETAIL"),
+  );
+  const callbacks = `${compose}\n${detail}`
+    .replaceAll("ROUTE_FORUM_POST", "route")
+    .replace("      } else if", "if")
+    .replace("ForumComposePage", "captureCompose")
+    .replace("ForumPostDetailPage", "captureDetail");
+  let saved!: (postId: string) => void;
+  let changed!: () => void;
+  const captureCompose = (options: { onSaved: (postId: string) => void }) => {
+    saved = options.onSaved;
+  };
+  const captureDetail = (options: { onChanged: () => void }) => {
+    changed = options.onChanged;
+  };
+  const executable = ts.transpileModule(callbacks, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const sandbox = {
+    pathStack: { pop() {} },
+    activityRevision: 0,
+    forumRefreshVersion: 0,
+    openRoute() {},
+    name: "forum-compose",
+    ROUTE_FORUM_COMPOSE: "forum-compose",
+    captureCompose,
+    captureDetail,
+    param: { postId: "post-1" },
+  };
+  runInNewContext(`const route = 'forum-post';\nconst home = this;\n${executable}\n`, sandbox);
+  saved("created-post");
+  sandbox.name = "forum-post";
+  runInNewContext(executable, sandbox);
+  changed();
+  assert.equal(sandbox.activityRevision, 2);
+  assert.equal(sandbox.forumRefreshVersion, 2);
+});
