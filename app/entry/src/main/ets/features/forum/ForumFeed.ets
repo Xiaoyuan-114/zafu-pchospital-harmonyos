@@ -316,8 +316,8 @@ struct ForumFeed {
         }.width('100%').padding(26).backgroundColor(Color.White).borderRadius(20)
       } else {
         ForEach(this.posts, (item: ForumPostView) => {
-          this.postCard(item);
-        }, (item: ForumPostView) => item.id)
+          this.postCard(item)
+        }, (item: ForumPostView) => `${item.id}:${item.commentCount}`)
         if (this.errorText !== '') {
           ErrorPanel({ message: this.errorText, onRetry: (): void => this.retry() })
         }

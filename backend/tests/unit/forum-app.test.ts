@@ -328,7 +328,12 @@ function feedHarness() {
     ROUTE_FORUM_COMPOSE: "forum-compose",
   }) as ForumFeedApi;
   const result = (page: number, ids: string[], totalPages = 1): FeedPage => ({
-    items: ids.map((id) => ({ id, title: `帖子 ${id}` })),
+    items: ids.map((id) => ({
+      id, title: `帖子 ${id}`, category: "GENERAL", body: "正文", commentCount: 0,
+      createdAt: "2026-10-29T00:00:00Z", updatedAt: "2026-10-29T00:00:00Z",
+      author: { id: "author-1", displayName: "客户" }, images: [],
+      actions: { canDelete: false, canUploadImages: false, canComment: false },
+    })),
     pagination: { page, pageSize: 20, total: ids.length, totalPages },
   });
   return { feed, requests, result };
@@ -347,8 +352,29 @@ test("论坛新关键词请求不会被迟到旧响应覆盖", async () => {
   assert.notDeepEqual(feed.posts, [{ id: "old", title: "帖子 old" }]);
   requests[1].resolve(result(1, ["new"]));
   await second;
-  assert.deepEqual(feed.posts, [{ id: "new", title: "帖子 new" }]);
+  assert.deepEqual(feed.posts.map((post) => [post.id, post.title]), [["new", "帖子 new"]]);
   assert.equal(feed.page, 1);
+});
+
+test("同一帖子的评论数变化产生新渲染键，避免复用旧卡片", () => {
+  const source = readFileSync("../app/entry/src/main/ets/features/forum/ForumFeed.ets", "utf8");
+  const start = source.indexOf("        ForEach(this.posts");
+  const list = source.slice(start, source.indexOf("        if (this.errorText", start));
+  const code = ts.transpileModule(list.replace("this.postCard(item)", ""), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const sandbox = {
+    posts: [{ id: "post-1", commentCount: 2 }],
+    keys: [] as string[],
+    ForEach(items: Array<{ id: string; commentCount: number }>, _builder: unknown, key: (item: { id: string; commentCount: number }) => string) {
+      sandbox.keys = items.map(key);
+    },
+  };
+  runInNewContext(code, sandbox);
+  const initialKey = sandbox.keys[0];
+  sandbox.posts = [{ id: "post-1", commentCount: 3 }];
+  runInNewContext(code, sandbox);
+  assert.notEqual(sandbox.keys[0], initialKey);
 });
 
 test("论坛分页失败保留已加载内容，重试只请求下一页", async () => {
