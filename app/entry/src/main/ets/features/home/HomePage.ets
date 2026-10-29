@@ -458,7 +458,10 @@ export struct HomePage {
         ForumPostDetailPage({
           param: param as ForumPostParam,
           authenticated: this.authenticated && !this.mustChangePassword,
-          onBack: (): void => { this.pathStack.pop(); },
+          onBack: (): void => {
+            this.pathStack.pop();
+            this.forumRefreshVersion += 1;
+          },
           onLogin: (): void => {
             if (this.mustChangePassword) this.openPasswordChange(true);
             else this.requestLogin(new LoginIntent());
@@ -705,6 +708,11 @@ export struct HomePage {
     .onBackPressed((): boolean => {
       // 认证写请求进行中 / 强制改密未完成：拦下返回，避免迟到响应把会话写成另一个账号。
       if (this.interceptBack(name)) return true;
+      if (name === ROUTE_FORUM_POST) {
+        this.pathStack.pop();
+        this.forumRefreshVersion += 1;
+        return true;
+      }
       if (name === ROUTE_REPAIR_ORDERS && this.customerOrderBackHandler()) return true;
       if (name === ROUTE_LOGIN || name === ROUTE_PASSWORD_CHANGE) {
         // 放弃登录 / 改密即作废续接意图；注册路由刻意不清，注册页取消后要回登录页续接原操作。

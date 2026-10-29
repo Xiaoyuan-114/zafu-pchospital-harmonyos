@@ -740,11 +740,13 @@ test("发帖、评论和删除回调同时刷新主论坛列表与我的帖子",
     .replace("ForumPostDetailPage", "captureDetail");
   let saved!: (postId: string) => void;
   let changed!: () => void;
+  let back!: () => void;
   const captureCompose = (options: { onSaved: (postId: string) => void }) => {
     saved = options.onSaved;
   };
-  const captureDetail = (options: { onChanged: () => void }) => {
+  const captureDetail = (options: { onChanged: () => void; onBack: () => void }) => {
     changed = options.onChanged;
+    back = options.onBack;
   };
   const executable = ts.transpileModule(callbacks, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
@@ -765,6 +767,7 @@ test("发帖、评论和删除回调同时刷新主论坛列表与我的帖子",
   sandbox.name = "forum-post";
   runInNewContext(executable, sandbox);
   changed();
+  back();
   assert.equal(sandbox.activityRevision, 2);
-  assert.equal(sandbox.forumRefreshVersion, 2);
+  assert.equal(sandbox.forumRefreshVersion, 3);
 });
