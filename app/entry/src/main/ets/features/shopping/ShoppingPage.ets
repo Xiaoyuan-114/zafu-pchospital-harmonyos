@@ -36,6 +36,8 @@ export struct ShoppingPage {
   @State page: number = 1;
   @State keyword: string = '';
   @State category: string = '';
+  @State appliedKeyword: string = '';
+  @State appliedCategory: string = '';
   @State loading: boolean = false;
   @State loadingMore: boolean = false;
   @State failed: boolean = false;
@@ -59,10 +61,11 @@ export struct ShoppingPage {
   }
 
   private visibleProducts(): ShoppingProductView[] {
-    const keyword: string = this.keyword.trim().toLowerCase();
-    if (keyword === '') return this.products;
-    return this.products.filter((item: ShoppingProductView) =>
-      item.title.toLowerCase().includes(keyword) || item.description.toLowerCase().includes(keyword));
+    return this.products;
+  }
+
+  private retainedErrorVisible(): boolean {
+    return this.errorText !== '' && !this.failed && this.products.length > 0;
   }
 
   private newest(): ShoppingProductView | null {
@@ -89,12 +92,16 @@ export struct ShoppingPage {
     this.loadingMore = false;
     this.failed = false;
     this.errorText = '';
+    const sentCategory: string = this.category;
+    const sentKeyword: string = this.keyword.trim();
     try {
-      const first = await ShoppingService.listProducts(this.category, 1, PAGE_SIZE);
+      const first = await ShoppingService.listProducts(sentCategory, sentKeyword, 1, PAGE_SIZE);
       if (generation !== this.requestGeneration) return;
       this.products = first.items;
       this.total = first.pagination.total;
       this.page = 1;
+      this.appliedCategory = sentCategory;
+      this.appliedKeyword = sentKeyword;
       this.refreshBanner();
     } catch (error) {
       if (generation !== this.requestGeneration) return;
@@ -109,7 +116,7 @@ export struct ShoppingPage {
     this.loadingMore = true;
     const generation: number = this.requestGeneration;
     try {
-      const next = await ShoppingService.listProducts(this.category, this.page + 1, PAGE_SIZE);
+      const next = await ShoppingService.listProducts(this.appliedCategory, this.appliedKeyword, this.page + 1, PAGE_SIZE);
       if (generation !== this.requestGeneration) return;
       const merged: ShoppingProductView[] = [];
       for (const item of this.products) merged.push(item);
@@ -129,7 +136,7 @@ export struct ShoppingPage {
       this.refreshBanner();
     } catch (error) {
       if (generation !== this.requestGeneration) return;
-      this.errorText = this.errorMessage(error);
+      this.handleError(error);
     } finally {
       if (generation === this.requestGeneration) this.loadingMore = false;
     }
@@ -137,6 +144,21 @@ export struct ShoppingPage {
 
   private selectCategory(category: string): void {
     this.category = this.category === category ? '' : category;
+    this.reload();
+  }
+
+  private clearAppliedCategory(): void {
+    this.category = '';
+    this.reload();
+  }
+
+  private submitSearch(): void {
+    this.keyword = this.keyword.trim();
+    this.reload();
+  }
+
+  private clearSearch(): void {
+    this.keyword = '';
     this.reload();
   }
 
@@ -151,7 +173,7 @@ export struct ShoppingPage {
       this.onSessionExpired();
       return;
     }
-    this.failed = true;
+    this.failed = this.products.length === 0;
     this.errorText = this.errorMessage(error);
   }
 
@@ -240,10 +262,10 @@ export struct ShoppingPage {
             Text('校园二手与维修耗材').fontSize(11).fontColor('#6F7A82')
           }.width('100%').height(48)
 
-          // 顶部整宽搜索：只过滤已经加载到本地的商品，避免把搜索词当成服务端全文检索。
+          // 顶部整宽搜索：提交、清空和分类切换都重新请求真实服务端。
           Row({ space: 8 }) {
             Image($r('app.media.home_search')).width(18).height(18).objectFit(ImageFit.Contain)
-            TextInput({ text: this.keyword, placeholder: '搜索已加载的商品' })
+            TextInput({ text: this.keyword, placeholder: '搜索全部在售商品' })
               .height(42)
               .layoutWeight(1)
               .backgroundColor(Color.Transparent)
@@ -251,11 +273,18 @@ export struct ShoppingPage {
               .onChange((value: string) => {
                 this.keyword = value;
               })
+              .onSubmit(() => {
+                this.submitSearch();
+              })
             if (this.keyword !== '') {
-              Text('清除').fontSize(12).fontColor($r('app.color.brand')).onClick(() => {
-                this.keyword = '';
+              Text('清空').fontSize(12).fontColor($r('app.color.brand')).onClick(() => {
+                this.clearSearch();
               })
             }
+            Button('搜索').fontSize(12).height(32).backgroundColor('#2474D4').fontColor(Color.White)
+              .onClick(() => {
+                this.submitSearch();
+              })
           }
           .width('100%')
           .padding({ left: 12, right: 12 })
@@ -272,7 +301,7 @@ export struct ShoppingPage {
               this.bannerSlide(
                 `${this.total} 件在售`,
                 '二手电脑配件与维修耗材，线下付款取货；本应用不承诺线上支付。',
-                this.category === '' ? '全部分类' : `当前筛选：${shoppingCategoryLabel(this.category)}`,
+                this.appliedCategory === '' ? '全部分类' : `当前筛选：${shoppingCategoryLabel(this.appliedCategory)}`,
                 '#DCEBFA'
               )
             }
@@ -292,12 +321,12 @@ export struct ShoppingPage {
 
           Row({ space: 8 }) {
             Text('最新上架').fontSize(20).fontWeight(FontWeight.Bold).fontColor('#101416').layoutWeight(1)
-            if (this.category !== '') {
-              Text(`${shoppingCategoryLabel(this.category)} ×`).fontSize(11).fontColor('#6F5B35')
+            if (this.appliedCategory !== '') {
+              Text(`${shoppingCategoryLabel(this.appliedCategory)} ×`).fontSize(11).fontColor('#6F5B35')
                 .padding({ left: 9, right: 9, top: 4, bottom: 4 })
                 .backgroundColor('#F3E8D0').borderRadius(12)
                 .onClick(() => {
-                  this.selectCategory(this.category);
+                  this.clearAppliedCategory();
                 })
             }
           }.width('100%')
@@ -316,7 +345,7 @@ export struct ShoppingPage {
             }.width('100%').height(160).justifyContent(FlexAlign.Center)
           } else if (this.visibleProducts().length === 0) {
             Column() {
-              DetailEmptyOrders({ text: this.keyword === '' ? '暂无在售商品' : '没有匹配的在售商品' })
+              DetailEmptyOrders({ text: this.appliedKeyword === '' ? '暂无在售商品' : '没有匹配的在售商品' })
               Button('发布商品').height(40).fontSize(14).fontColor(Color.White)
                 .backgroundColor($r('app.color.brand'))
                 .onClick(() => {
@@ -329,14 +358,26 @@ export struct ShoppingPage {
                 this.productCard(item)
               }, (item: ShoppingProductView) => item.id)
             }.width('100%')
+            if (this.retainedErrorVisible()) {
+              Column({ space: 8 }) {
+                Text(this.errorText).fontSize(13).fontColor($r('app.color.danger')).width('100%')
+                Button('重试').height(32).fontSize(12).onClick(() => {
+                  this.reload();
+                })
+              }
+              .width('100%')
+              .padding(12)
+              .backgroundColor('#FFF2F0')
+              .borderRadius(12)
+            }
             if (this.products.length < this.total) {
               Text(this.loadingMore ? '加载中…' : '继续上滑加载更多').fontSize(11).fontColor('#8C949A')
                 .width('100%').textAlign(TextAlign.Center).padding({ top: 4, bottom: 8 })
             }
           }
 
-          if (this.keyword !== '') {
-            Text('搜索只过滤当前已加载的商品；继续上滑可加载更多。').fontSize(10).fontColor('#8C949A')
+          if (this.appliedKeyword !== '') {
+            Text(`服务端搜索：${this.appliedKeyword}；清空可恢复全部商品。`).fontSize(10).fontColor('#8C949A')
           }
 
           if (this.staff) {

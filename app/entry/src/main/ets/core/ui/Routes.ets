@@ -16,6 +16,11 @@ export const ROUTE_ACTIVITY_ADMIN: string = 'activity-admin';
 export const ROUTE_ACTIVITY_EDIT: string = 'activity-edit';
 export const ROUTE_ACTIVITY_REGISTRATION_ADMIN: string = 'activity-registration-admin';
 
+/** 论坛（Issue #85 App）：帖子详情游客可读；发布与本人帖子需登录。 */
+export const ROUTE_FORUM_POST: string = 'forum-post';
+export const ROUTE_FORUM_COMPOSE: string = 'forum-compose';
+export const ROUTE_MY_FORUM_POSTS: string = 'my-forum-posts';
+
 /** 选购（Issue #84 App）：商品详情游客可读；其余子页需登录。 */
 export const ROUTE_SHOPPING_GOODS_DETAIL: string = 'shopping-goods-detail';
 export const ROUTE_SHOPPING_GOODS_EDIT: string = 'shopping-goods-edit';
@@ -94,6 +99,9 @@ export function routeTitle(name: string): string {
   if (name === ROUTE_ACTIVITY_ADMIN) return '活动管理';
   if (name === ROUTE_ACTIVITY_EDIT) return '创建 / 编辑活动';
   if (name === ROUTE_ACTIVITY_REGISTRATION_ADMIN) return '活动报名管理';
+  if (name === ROUTE_FORUM_POST) return '帖子详情';
+  if (name === ROUTE_FORUM_COMPOSE) return '发布帖子';
+  if (name === ROUTE_MY_FORUM_POSTS) return '我的帖子';
   if (name === ROUTE_SHOPPING_GOODS_DETAIL) return '商品详情';
   if (name === ROUTE_SHOPPING_GOODS_EDIT) return '发布 / 编辑商品';
   if (name === ROUTE_SHOPPING_ORDERS) return '我的购物订单';

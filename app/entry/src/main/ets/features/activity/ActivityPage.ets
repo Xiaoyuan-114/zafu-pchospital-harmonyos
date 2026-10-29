@@ -1,8 +1,9 @@
 import { ApiClient, ApiRequestError } from '../../core/network/ApiClient';
 import { ApiConfig } from '../../core/network/ApiConfig';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
-import { ReferenceBanner, ReferenceSearch, ReferenceShortcut, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
+import { ReferenceBanner, ReferenceSearch, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
 import { ROUTE_ACTIVITY_DETAIL } from '../../core/ui/Routes';
+import { ForumFeed } from '../forum/ForumFeed';
 import { ActivityParam } from './ActivityContract';
 
 interface RepairActivity {
@@ -21,8 +22,11 @@ interface RepairActivity {
 @Component
 export struct ActivityPage {
   onOpen: (route: string, param: Object | null) => void = () => {};
-  @State channel: string = '推荐';
+  onLogin: () => void = () => {};
+  onSessionExpired: () => void = () => {};
+  @Prop channel: string = '活动';
   @State query: string = '';
+  @Prop forumRefreshVersion: number = 0;
   @State activities: RepairActivity[] = [];
   @State loading: boolean = false;
   @State errorText: string = '';
@@ -95,46 +99,42 @@ export struct ActivityPage {
   build() {
     Scroll() {
       Column({ space: 16 }) {
-        Scroll() {
-          Row({ space: 20 }) {
-            ForEach(['推荐', '维修活动', '服务公告', '经验分享'], (name: string) => {
-              Text(name).fontSize(this.channel === name ? 26 : 18)
-                .fontWeight(this.channel === name ? FontWeight.Bold : FontWeight.Medium)
-                .fontColor(this.channel === name ? '#111416' : '#6E7376')
-                .onClick(() => { this.channel = name; })
-            })
-          }.height(50)
-        }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
-        ReferenceSearch({ text: $query, placeholder: '搜索社团维修活动' })
-        ReferenceBanner({
-          title: '电脑医院  校园同行', subtitle: '维修活动 · 经验分享', image: $r('app.media.ref_activity_hero'),
-          violet: true, actionText: '查看维修活动',
-          onSelect: (): void => { this.channel = '维修活动'; }
-        })
-        Row() {
-          ReferenceShortcut({ title: '维修活动', icon: $r('app.media.ref_activity'), onSelect: (): void => { this.channel = '维修活动'; } })
-          ReferenceShortcut({ title: '服务公告', icon: $r('app.media.ref_document'), onSelect: (): void => { this.channel = '服务公告'; } })
-          ReferenceShortcut({ title: '经验分享', icon: $r('app.media.ref_system'), onSelect: (): void => { this.channel = '经验分享'; } })
-        }.width('100%').margin({ bottom: 8 })
-        if (this.channel === '服务公告' || this.channel === '经验分享') {
-          Column({ space: 10 }) {
-            Image($r('app.media.ref_document')).width(40).height(40)
-            Text(`${this.channel}暂未接入`).fontSize(16).fontWeight(FontWeight.Medium)
-            Text('首版由社团发布内容').fontSize(12).fontColor('#7B848B')
-          }.width('100%').padding(28).backgroundColor(Color.White).borderRadius(20)
-        } else if (this.loading) {
-          LoadingPanel({ text: '正在加载活动…' })
-        } else if (this.errorText !== '') {
-          ErrorPanel({ message: this.errorText, onRetry: (): void => { this.load(); } })
-        } else if (this.visibleActivities().length === 0) {
-          Column({ space: 10 }) {
-            Image($r('app.media.ref_activity')).width(44).height(44)
-            Text(this.query.trim() === '' ? '暂未发布维修活动' : '没有匹配的活动').fontSize(16)
-            Button('刷新活动').fontSize(13).backgroundColor('#F1F6FD').fontColor('#2677DB').onClick(() => { this.load(); })
-          }.width('100%').padding(24).backgroundColor(Color.White).borderRadius(20)
+        Row({ space: 24 }) {
+          ForEach(['活动', '论坛'], (name: string) => {
+            Text(name).fontSize(this.channel === name ? 26 : 18)
+              .fontWeight(this.channel === name ? FontWeight.Bold : FontWeight.Medium)
+              .fontColor(this.channel === name ? '#111416' : '#6E7376')
+              .padding({ top: 10, bottom: 10 })
+              .onClick(() => { this.channel = name; })
+          })
+        }.height(50)
+        if (this.channel === '活动') {
+          ReferenceSearch({ text: $query, placeholder: '搜索社团维修活动' })
+          ReferenceBanner({
+            title: '电脑医院  校园同行', subtitle: '真实维修活动 · 报名与现场服务', image: $r('app.media.ref_activity_hero'),
+            violet: true
+          })
+          if (this.loading) {
+            LoadingPanel({ text: '正在加载活动…' })
+          } else if (this.errorText !== '') {
+            ErrorPanel({ message: this.errorText, onRetry: (): void => { this.load(); } })
+          } else if (this.visibleActivities().length === 0) {
+            Column({ space: 10 }) {
+              Image($r('app.media.ref_activity')).width(44).height(44)
+              Text(this.query.trim() === '' ? '暂未发布维修活动' : '没有匹配的活动').fontSize(16)
+              Button('刷新活动').fontSize(13).backgroundColor('#F1F6FD').fontColor('#2677DB').onClick(() => { this.load(); })
+            }.width('100%').padding(24).backgroundColor(Color.White).borderRadius(20)
+          } else {
+            ForEach(this.visibleActivities(), (item: RepairActivity) => { this.activityCard(item); }, (item: RepairActivity) => item.id)
+            Button('刷新活动').fontSize(13).onClick(() => { this.load(); })
+          }
         } else {
-          ForEach(this.visibleActivities(), (item: RepairActivity) => { this.activityCard(item); }, (item: RepairActivity) => item.id)
-          Button('刷新活动').fontSize(13).onClick(() => { this.load(); })
+          ForumFeed({
+            refreshVersion: this.forumRefreshVersion,
+            onOpen: this.onOpen,
+            onLogin: this.onLogin,
+            onSessionExpired: this.onSessionExpired
+          })
         }
       }.width('100%').padding({ left: 16, right: 16, bottom: 90 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').scrollBar(BarState.Off).align(Alignment.Top).backgroundColor(REFERENCE_BACKGROUND)

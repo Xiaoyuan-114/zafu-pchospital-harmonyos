@@ -51,6 +51,11 @@ import { SellerOrdersPage } from '../shopping/SellerOrdersPage';
 import { MyProductsPage } from '../shopping/MyProductsPage';
 import { ShoppingGoodsParam } from '../shopping/ShoppingTypes';
 import { ROUTE_SHOPPING_GOODS_DETAIL, ROUTE_SHOPPING_GOODS_EDIT, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS, ROUTE_SHOPPING_MY_PRODUCTS } from '../../core/ui/Routes';
+import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST, ROUTE_MY_FORUM_POSTS } from '../../core/ui/Routes';
+import { ForumPostDetailPage } from '../forum/ForumPostDetailPage';
+import { ForumComposePage } from '../forum/ForumComposePage';
+import { MyForumPostsPage } from '../forum/MyForumPostsPage';
+import { ForumPostParam } from '../forum/ForumContract';
 import { HomeTab } from './HomeTab';
 import { ProfilePage } from '../profile/ProfilePage';
 import { PersonalProfilePage } from '../profile/PersonalProfilePage';
@@ -97,6 +102,8 @@ const AUTH_ROUTES: string[] = [ROUTE_LOGIN, ROUTE_REGISTER_CUSTOMER, ROUTE_REGIS
  * 改 `Routes.ets` 里该路由值时必须同步本行；不一致时退化为「要求登录」，是安全方向。
  */
 const GUEST_KNOWLEDGE_ROUTE: string = 'knowledge-library';
+/** 与 ROUTE_FORUM_POST 同值；本文件的源码切片沙箱不解析新增路由 import。 */
+const GUEST_FORUM_ROUTE: string = 'forum-post';
 
 /**
  * `routeAfterLogin` 的兜底身份：只在内存身份缺失（理论上不会发生）时使用。
@@ -177,6 +184,8 @@ export struct HomePage {
   @State pathStack: NavPathStack = new NavPathStack();
   @State currentTab: number = TAB_INDEX_HOME;
   @State activityRevision: number = 0;
+  @State forumChannel: string = '活动';
+  @State forumRefreshVersion: number = 0;
   @State recordsRevision: number = 0;
   @State workbenchRevision: number = 0;
   @State favoritesRevision: number = 0;
@@ -334,7 +343,7 @@ export struct HomePage {
     // 知识目录（#83 迁入服务）刻意**不**在这个放行名单里：先把账号送到改密页。
     // 注意这里没有写 `loginIntent`，所以改密成功后不会自动打开知识目录，
     // 而是回到 tab 根页（安全行为：半受限账号不直接进入知识页撞 403）。
-    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail') {
+    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
       this.openPasswordChange(true);
       return;
     }
@@ -342,7 +351,7 @@ export struct HomePage {
     // `GUEST_KNOWLEDGE_ROUTE` 是 `ROUTE_KNOWLEDGE_LIBRARY` 的字面量镜像，原因见该常量注释。
     if (!this.authenticated && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH
       && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== GUEST_KNOWLEDGE_ROUTE
-      && route !== 'shopping-goods-detail') {
+      && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
       const intent = new LoginIntent();
       intent.route = route;
       intent.param = param;
@@ -427,6 +436,41 @@ export struct HomePage {
           onCancel: (): void => { this.cancelLogin(); },
           onSessionExpired: (): void => { this.expireSession(); },
           onBusyChange: (busy: boolean): void => { this.passwordChangeBusy = busy; }
+        });
+      } else if (name === ROUTE_FORUM_COMPOSE) {
+        ForumComposePage({
+          onSaved: (postId: string): void => {
+            this.pathStack.pop();
+            this.activityRevision += 1;
+            this.forumRefreshVersion += 1;
+            const target: ForumPostParam = { postId: postId };
+            this.openRoute(ROUTE_FORUM_POST, target);
+          },
+          onSessionExpired: (): void => { this.expireSession(); }
+        });
+      } else if (name === ROUTE_MY_FORUM_POSTS) {
+        MyForumPostsPage({
+          refreshVersion: this.activityRevision,
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+          onSessionExpired: (): void => { this.expireSession(); }
+        });
+      } else if (name === ROUTE_FORUM_POST) {
+        ForumPostDetailPage({
+          param: param as ForumPostParam,
+          authenticated: this.authenticated && !this.mustChangePassword,
+          onBack: (): void => {
+            this.pathStack.pop();
+            this.forumRefreshVersion += 1;
+          },
+          onLogin: (): void => {
+            if (this.mustChangePassword) this.openPasswordChange(true);
+            else this.requestLogin(new LoginIntent());
+          },
+          onChanged: (): void => {
+            this.activityRevision += 1;
+            this.forumRefreshVersion += 1;
+          },
+          onSessionExpired: (): void => { this.expireSession(); }
         });
       } else if (name === ROUTE_ACTIVITY_DETAIL || name === ROUTE_ACTIVITY_SIGNUP) {
         ActivityDetailPage({ param: param as ActivityParam, signup: name === ROUTE_ACTIVITY_SIGNUP, refreshVersion: this.activityRevision,
@@ -664,6 +708,11 @@ export struct HomePage {
     .onBackPressed((): boolean => {
       // 认证写请求进行中 / 强制改密未完成：拦下返回，避免迟到响应把会话写成另一个账号。
       if (this.interceptBack(name)) return true;
+      if (name === ROUTE_FORUM_POST) {
+        this.pathStack.pop();
+        this.forumRefreshVersion += 1;
+        return true;
+      }
       if (name === ROUTE_REPAIR_ORDERS && this.customerOrderBackHandler()) return true;
       if (name === ROUTE_LOGIN || name === ROUTE_PASSWORD_CHANGE) {
         // 放弃登录 / 改密即作废续接意图；注册路由刻意不清，注册页取消后要回登录页续接原操作。
@@ -723,6 +772,12 @@ export struct HomePage {
           TabContent() {
             HomeTab({
               onActivities: (): void => { this.selectNavigation(1); },
+              onShopping: (): void => { this.selectNavigation(3); },
+              onForum: (): void => {
+                this.forumChannel = '论坛';
+                this.forumRefreshVersion += 1;
+                this.selectNavigation(1);
+              },
               displayName: this.displayName,
               roleText: this.roleText,
               home: this.home,
@@ -737,7 +792,13 @@ export struct HomePage {
           }
 
           TabContent() {
-            ActivityPage({ onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); } })
+            ActivityPage({
+              channel: this.forumChannel,
+              forumRefreshVersion: this.forumRefreshVersion,
+              onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+              onLogin: (): void => { this.openRoute(ROUTE_FORUM_COMPOSE, null); },
+              onSessionExpired: (): void => { this.expireSession(); }
+            })
           }
 
           TabContent() {
