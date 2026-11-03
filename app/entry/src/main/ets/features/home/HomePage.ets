@@ -124,6 +124,8 @@ class LoginFallbackIdentity implements SessionIdentity {
 
 @Component
 export struct HomePage {
+  onRootBackReady: (handler: () => boolean) => void = () => {};
+  @State forumSearching: boolean = false;
   @Prop authenticated: boolean = false;
   onLoggedIn: (identity: SessionIdentity) => void = () => {};
   onProfileSaved: (name: string) => void = () => {};
@@ -148,6 +150,7 @@ export struct HomePage {
   private motionChanged: (enabled: boolean) => void = (enabled: boolean): void => { this.reduceMotion = enabled; };
 
   aboutToAppear(): void {
+    this.onRootBackReady((): boolean => this.interceptRootBack());
     try {
       this.reduceMotion = accessibility.isAnimationReduceEnabledSync();
       accessibility.onAnimationReduceStateChange(this.motionChanged);
@@ -161,7 +164,14 @@ export struct HomePage {
   }
 
   aboutToDisappear(): void {
+    this.onRootBackReady((): boolean => false);
     try { accessibility.offAnimationReduceStateChange(this.motionChanged); } catch (_) {}
+  }
+
+  private interceptRootBack(): boolean {
+    if (this.pathStack.size() !== 0 || this.currentTab !== 1 || !this.forumSearching) return false;
+    this.forumSearching = false;
+    return true;
   }
 
   @Prop displayName: string = '';
@@ -793,7 +803,8 @@ export struct HomePage {
 
           TabContent() {
             ActivityPage({
-              channel: this.forumChannel,
+              channel: $forumChannel,
+              forumSearching: $forumSearching,
               forumRefreshVersion: this.forumRefreshVersion,
               onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
               onLogin: (): void => { this.openRoute(ROUTE_FORUM_COMPOSE, null); },

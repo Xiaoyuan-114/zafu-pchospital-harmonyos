@@ -15,6 +15,11 @@ const PHASE_HOME: number = 2;
 @Entry
 @Component
 struct Index {
+  private rootBackHandler: () => boolean = () => false;
+
+  onBackPress(): boolean {
+    return this.rootBackHandler();
+  }
   @State phase: number = PHASE_BOOT;
   @State authenticated: boolean = false;
   @State displayName: string = '';
@@ -111,6 +116,7 @@ struct Index {
       this.bootView();
     } else {
       HomePage({
+        onRootBackReady: (handler: () => boolean): void => { this.rootBackHandler = handler; },
         authenticated: this.authenticated,
         onLoggedIn: (identity: SessionIdentity): void => { this.applyIdentity(identity); },
         onProfileSaved: (name: string): void => { this.displayName = name; },

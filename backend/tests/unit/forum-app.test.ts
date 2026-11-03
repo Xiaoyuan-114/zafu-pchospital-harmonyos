@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
+import { setImmediate as settle } from "node:timers/promises";
 import ts from "typescript";
 
 type Call = {
@@ -287,12 +288,21 @@ interface ForumFeedApi {
   posts: FeedPost[];
   page: number;
   totalPages: number;
+  appliedQuery: string;
+  searching: boolean;
+  active: boolean;
+  onSearchModeChanged(): void;
+  onActiveChanged(): void;
+  loading: boolean;
+  loadingMore: boolean;
   errorText: string;
   load(): Promise<void>;
   loadMore(): Promise<void>;
   search(): Promise<void>;
   clearSearch(): Promise<void>;
   selectCategory(category: string): Promise<void>;
+  retry(): void;
+  postRenderKey(post: { id: string; updatedAt: string; commentCount: number }): string;
 }
 
 /** 执行真实 ForumFeed 状态方法；ArkUI 构建区和图片组件不进入沙箱。 */
@@ -305,14 +315,24 @@ function feedHarness() {
   const state = source
     .slice(start, source.indexOf("  @Builder", start))
     .replace("struct ForumFeed", "class ForumFeed")
-    .replace(/@(State|Prop)\s+/g, "")
+    .replace(/@(State|Prop|Link)\s+/g, "")
     .replace(/@Watch\('[^']+'\)\s*/g, "")
-    + "\nnew ForumFeed();";
+    + "\n}\nnew ForumFeed();";
   const code = ts.transpileModule(state, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
   const requests: FeedRequest[] = [];
   const feed = runInNewContext(code, {
+    ListScroller: class {
+      currentOffset() { return { xOffset: 0, yOffset: 0 }; }
+      getItemRect() { return { y: 0 }; }
+      scrollTo() {}
+      scrollToIndex() {}
+    },
+    setTimeout,
+    clearTimeout,
+    ScrollAlign: { START: 0 },
+    LengthMetrics: { vp: (value: number) => value },
     ForumService: {
       listPosts: (category: string, query: string, page: number) =>
         new Promise<FeedPage>((resolve, reject) => {
@@ -342,9 +362,9 @@ function feedHarness() {
 test("论坛新关键词请求不会被迟到旧响应覆盖", async () => {
   const { feed, requests, result } = feedHarness();
   feed.query = "硬盘";
-  const first = feed.load();
+  const first = feed.search();
   feed.query = "网络";
-  const second = feed.load();
+  const second = feed.search();
   assert.deepEqual(requests.map((request) => request.query), ["硬盘", "网络"]);
 
   requests[0].resolve(result(1, ["old"]));
@@ -352,35 +372,20 @@ test("论坛新关键词请求不会被迟到旧响应覆盖", async () => {
   assert.notDeepEqual(feed.posts, [{ id: "old", title: "帖子 old" }]);
   requests[1].resolve(result(1, ["new"]));
   await second;
-  assert.deepEqual(feed.posts.map((post) => [post.id, post.title]), [["new", "帖子 new"]]);
+  assert.deepEqual(Array.from(feed.posts, (post) => [post.id, post.title]), [["new", "帖子 new"]]);
   assert.equal(feed.page, 1);
 });
 
 test("同一帖子的评论数变化产生新渲染键，避免复用旧卡片", () => {
-  const source = readFileSync("../app/entry/src/main/ets/features/forum/ForumFeed.ets", "utf8");
-  const start = source.indexOf("        ForEach(this.posts");
-  const list = source.slice(start, source.indexOf("        if (this.errorText", start));
-  const code = ts.transpileModule(list.replace("this.postCard(item)", ""), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
-  }).outputText;
-  const sandbox = {
-    posts: [{ id: "post-1", commentCount: 2 }],
-    keys: [] as string[],
-    ForEach(items: Array<{ id: string; commentCount: number }>, _builder: unknown, key: (item: { id: string; commentCount: number }) => string) {
-      sandbox.keys = items.map(key);
-    },
-  };
-  runInNewContext(code, sandbox);
-  const initialKey = sandbox.keys[0];
-  sandbox.posts = [{ id: "post-1", commentCount: 3 }];
-  runInNewContext(code, sandbox);
-  assert.notEqual(sandbox.keys[0], initialKey);
+  const { feed } = feedHarness();
+  const initial = { id: "post-1", updatedAt: "2026-11-03", commentCount: 2 };
+  assert.notEqual(feed.postRenderKey(initial), feed.postRenderKey({ ...initial, commentCount: 3 }));
 });
 
 test("论坛分页失败保留已加载内容，重试只请求下一页", async () => {
   const { feed, requests, result } = feedHarness();
   feed.query = "清灰";
-  const first = feed.load();
+  const first = feed.search();
   requests[0].resolve(result(1, ["p1", "p2"], 3));
   await first;
 
@@ -399,7 +404,7 @@ test("论坛分页失败保留已加载内容，重试只请求下一页", async
     ["清灰", 2],
     ["清灰", 2],
   ]);
-  assert.deepEqual(feed.posts.map((post) => post.id), ["p1", "p2", "p3"]);
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["p1", "p2", "p3"]);
 });
 
 test("论坛搜索提交、清空和分类切换都使用最新真实查询", async () => {
@@ -418,10 +423,149 @@ test("论坛搜索提交、清空和分类切换都使用最新真实查询", as
   requests[2].resolve(result(1, [], 0));
   await category;
   assert.deepEqual(requests.map((request) => [request.category, request.query]), [
-    ["GENERAL", "固态 硬盘"],
-    ["GENERAL", ""],
+    ["", "固态 硬盘"],
+    ["", ""],
     ["QUESTION", ""],
   ]);
+});
+
+test("论坛分页使用已提交搜索，输入框的新草稿不改变查询", async () => {
+  const { feed, requests, result } = feedHarness();
+  feed.query = "清灰";
+  const first = feed.search();
+  requests[0].resolve(result(1, ["p1"], 2));
+  await first;
+  feed.query = "尚未提交的新词";
+  const next = feed.loadMore();
+  assert.equal(requests[1].query, "清灰");
+  requests[1].resolve(result(2, ["p2"], 2));
+  await next;
+});
+
+test("论坛切分类立即清除旧类别列表，迟到响应不能混入新结果", async () => {
+  const { feed, requests, result } = feedHarness();
+  const first = feed.load();
+  requests[0].resolve(result(1, ["old"], 2));
+  await first;
+  const category = feed.selectCategory("QUESTION");
+  assert.equal(feed.posts.length, 0);
+  assert.equal(feed.loading, true);
+  requests[1].resolve(result(1, ["question"], 1));
+  await category;
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["question"]);
+});
+
+test("论坛刷新失败后的重试仍刷新第一页，不误追加下一页", async () => {
+  const { feed, requests, result } = feedHarness();
+  const first = feed.load();
+  requests[0].resolve(result(1, ["p1"], 3));
+  await first;
+  const refresh = feed.load();
+  requests[1].reject(new Error("离线"));
+  await refresh;
+  assert.equal(feed.posts.length, 1);
+  feed.retry();
+  assert.equal(requests[2].page, 1);
+  requests[2].resolve(result(1, ["updated"], 3));
+  await settle();
+});
+
+test("取消论坛搜索恢复原列表，丢弃搜索的迟到结果", async () => {
+  const { feed, requests, result } = feedHarness();
+  const initial = feed.load();
+  requests[0].resolve(result(1, ["original"], 2));
+  await initial;
+  feed.searching = true;
+  feed.onSearchModeChanged();
+  feed.query = "新词";
+  const search = feed.search();
+  feed.searching = false;
+  feed.onSearchModeChanged();
+  requests[1].resolve(result(1, ["late-search"]));
+  await search;
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["original"]);
+  assert.equal(feed.appliedQuery, "");
+  assert.equal(feed.query, "");
+  assert.equal(feed.totalPages, 2);
+  assert.equal(feed.loading, false);
+});
+
+test("隐藏论坛时作废在途请求，返回可重新加载且忙状态不残留", async () => {
+  const { feed, requests, result } = feedHarness();
+  const initial = feed.load();
+  feed.active = false;
+  feed.onActiveChanged();
+  requests[0].resolve(result(1, ["hidden"]));
+  await initial;
+  assert.equal(feed.posts.length, 0);
+  assert.equal(feed.loading, false);
+  feed.active = true;
+  feed.onActiveChanged();
+  assert.equal(requests.length, 2);
+  requests[1].resolve(result(1, ["visible"]));
+  await settle();
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["visible"]);
+});
+
+test("刷新论坛重取已加载页，保留后续页并去重重叠帖子", async () => {
+  const { feed, requests, result } = feedHarness();
+  const first = feed.load();
+  requests[0].resolve(result(1, ["p1"], 3));
+  await first;
+  const second = feed.loadMore();
+  requests[1].resolve(result(2, ["p1", "p2"], 3));
+  await second;
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["p1", "p2"]);
+  const refresh = feed.load();
+  requests[2].resolve(result(1, ["new", "p1"], 3));
+  await settle();
+  assert.equal(requests[3].page, 2);
+  requests[3].resolve(result(2, ["p1", "p2"], 3));
+  await refresh;
+  assert.equal(feed.page, 2);
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["new", "p1", "p2"]);
+});
+
+test("切分类使旧分页响应失效，分页触底不会并发请求", async () => {
+  const { feed, requests, result } = feedHarness();
+  const first = feed.load();
+  requests[0].resolve(result(1, ["p1"], 2));
+  await first;
+  const next = feed.loadMore();
+  await feed.loadMore();
+  assert.equal(requests.length, 2);
+  const changed = feed.selectCategory("EXPERIENCE");
+  requests[1].resolve(result(2, ["old-page"], 2));
+  await next;
+  assert.equal(feed.posts.length, 0);
+  requests[2].resolve(result(1, ["experience"]));
+  await changed;
+  assert.equal(feed.loadingMore, false);
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["experience"]);
+});
+
+test("根页返回只关闭论坛搜索，不截获子页面或其他主栏的返回", () => {
+  const source = readFileSync("../app/entry/src/main/ets/features/home/HomePage.ets", "utf8");
+  const start = source.indexOf("  private interceptRootBack()");
+  const method = source.slice(start, source.indexOf("  @Prop displayName", start));
+  const code = ts.transpileModule(`class Root { ${method} }\nnew Root();`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  for (const scenario of [
+    { tab: 1, depth: 0, searching: true, handled: true },
+    { tab: 1, depth: 1, searching: true, handled: false },
+    { tab: 0, depth: 0, searching: true, handled: false },
+    { tab: 1, depth: 0, searching: false, handled: false },
+  ]) {
+    const root = runInNewContext(code) as {
+      currentTab: number; pathStack: { size(): number }; forumSearching: boolean; interceptRootBack(): boolean;
+    };
+    root.currentTab = scenario.tab;
+    root.pathStack = { size: () => scenario.depth };
+    root.forumSearching = scenario.searching;
+    assert.equal(root.interceptRootBack(), scenario.handled);
+    assert.equal(root.forumSearching, scenario.handled ? false : scenario.searching);
+  }
 });
 
 type DetailCall = { method: string; args: unknown[] };

@@ -4,6 +4,7 @@ import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
 import { ReferenceBanner, ReferenceSearch, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
 import { ROUTE_ACTIVITY_DETAIL } from '../../core/ui/Routes';
 import { ForumFeed } from '../forum/ForumFeed';
+import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK, FORUM_MUTED, FORUM_SURFACE } from '../forum/ForumTheme';
 import { ActivityParam } from './ActivityContract';
 
 interface RepairActivity {
@@ -24,8 +25,9 @@ export struct ActivityPage {
   onOpen: (route: string, param: Object | null) => void = () => {};
   onLogin: () => void = () => {};
   onSessionExpired: () => void = () => {};
-  @Prop channel: string = '活动';
+  @Link channel: string;
   @State query: string = '';
+  @Link forumSearching: boolean;
   @Prop forumRefreshVersion: number = 0;
   @State activities: RepairActivity[] = [];
   @State loading: boolean = false;
@@ -96,19 +98,10 @@ export struct ActivityPage {
       })
   }
 
-  build() {
+  @Builder
+  activityContent() {
     Scroll() {
       Column({ space: 16 }) {
-        Row({ space: 24 }) {
-          ForEach(['活动', '论坛'], (name: string) => {
-            Text(name).fontSize(this.channel === name ? 26 : 18)
-              .fontWeight(this.channel === name ? FontWeight.Bold : FontWeight.Medium)
-              .fontColor(this.channel === name ? '#111416' : '#6E7376')
-              .padding({ top: 10, bottom: 10 })
-              .onClick(() => { this.channel = name; })
-          })
-        }.height(50)
-        if (this.channel === '活动') {
           ReferenceSearch({ text: $query, placeholder: '搜索社团维修活动' })
           ReferenceBanner({
             title: '电脑医院  校园同行', subtitle: '真实维修活动 · 报名与现场服务', image: $r('app.media.ref_activity_hero'),
@@ -128,15 +121,55 @@ export struct ActivityPage {
             ForEach(this.visibleActivities(), (item: RepairActivity) => { this.activityCard(item); }, (item: RepairActivity) => item.id)
             Button('刷新活动').fontSize(13).onClick(() => { this.load(); })
           }
-        } else {
-          ForumFeed({
-            refreshVersion: this.forumRefreshVersion,
-            onOpen: this.onOpen,
-            onLogin: this.onLogin,
-            onSessionExpired: this.onSessionExpired
-          })
-        }
-      }.width('100%').padding({ left: 16, right: 16, bottom: 90 }).alignItems(HorizontalAlign.Start)
+
+      }.width('100%').padding({ left: 16, right: 16, bottom: 104 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').scrollBar(BarState.Off).align(Alignment.Top).backgroundColor(REFERENCE_BACKGROUND)
+  }
+
+  @Builder
+  channelHeader() {
+    Row({ space: 20 }) {
+      ForEach(['活动', '论坛'], (name: string) => {
+        Button({ type: ButtonType.Normal }) {
+          Column({ space: 5 }) {
+            Text(name).fontSize(this.channel === name ? 22 : 18)
+              .fontWeight(this.channel === name ? FontWeight.Bold : FontWeight.Medium)
+              .fontColor(this.channel === name ? FORUM_INK : FORUM_MUTED)
+            Rect().width(18).height(3).radius(2).fill(this.channel === name ? FORUM_ACCENT : Color.Transparent)
+          }.height(52).justifyContent(FlexAlign.Center)
+        }.height(52).backgroundColor(Color.Transparent).borderRadius(0).padding(0)
+          .accessibilityText(`${name}${this.channel === name ? '，已选中' : ''}`)
+          .onClick(() => { this.channel = name; })
+      })
+      Blank().layoutWeight(1)
+      if (this.channel === '论坛') {
+        Button({ type: ButtonType.Normal }) {
+          Image($r('app.media.home_search')).width(22).height(22)
+        }.width(44).height(48).padding(0).backgroundColor(Color.Transparent)
+          .accessibilityText('搜索论坛帖子').onClick(() => { this.forumSearching = true; })
+        Button({ type: ButtonType.Normal }) {
+          Image($r('app.media.forum_compose')).width(21).height(21)
+        }.width(40).height(40).borderRadius(12).padding(0).backgroundColor(FORUM_ACCENT)
+          .accessibilityText('发布帖子').onClick(this.onLogin)
+      }
+    }.height(56).width('100%').padding({ left: 16, right: 8 })
+      .backgroundColor(this.channel === '论坛' ? FORUM_SURFACE : REFERENCE_BACKGROUND)
+  }
+
+  build() {
+    Column() {
+      if (this.channel !== '论坛' || !this.forumSearching) {
+        this.channelHeader()
+      }
+      Stack({ alignContent: Alignment.BottomEnd }) {
+        Column() { this.activityContent() }
+          .width('100%').height('100%').visibility(this.channel === '活动' ? Visibility.Visible : Visibility.None)
+        ForumFeed({
+          active: this.channel === '论坛', searching: $forumSearching,
+          refreshVersion: this.forumRefreshVersion, onOpen: this.onOpen,
+          onLogin: this.onLogin, onSessionExpired: this.onSessionExpired
+        }).visibility(this.channel === '论坛' ? Visibility.Visible : Visibility.None)
+      }.width('100%').layoutWeight(1)
+    }.width('100%').height('100%').backgroundColor(FORUM_BACKGROUND)
   }
 }
