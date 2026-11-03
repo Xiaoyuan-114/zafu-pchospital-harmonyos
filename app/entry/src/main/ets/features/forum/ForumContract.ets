@@ -55,6 +55,7 @@ export interface ForumPostDraft {
 
 export interface ForumPostParam {
   postId: string;
+  focusComments?: boolean;
 }
 
 export function forumCategoryLabel(category: string): string {

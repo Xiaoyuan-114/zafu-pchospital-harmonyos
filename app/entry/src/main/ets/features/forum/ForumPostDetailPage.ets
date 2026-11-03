@@ -1,11 +1,12 @@
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
+import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { ApiPage } from '../../core/network/ApiContract';
 import { SessionService } from '../../core/auth/SessionService';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
-import { DetailHeader } from '../../core/ui/ReferenceDetail';
 import { ForumCommentView, ForumImageView, ForumPostParam, ForumPostView, forumCategoryLabel } from './ForumContract';
 import { ForumService } from './ForumService';
 import { ForumPostImage } from './ForumFeed';
+import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK, FORUM_MUTED, FORUM_SECONDARY, FORUM_SURFACE } from './ForumTheme';
 
 function detailTimeText(value: string): string {
   const time: Date = new Date(new Date(value).getTime() + 8 * 3600000);
@@ -16,8 +17,9 @@ function detailTimeText(value: string): string {
 @Component
 export struct ForumPostDetailPage {
   @Prop param: ForumPostParam = { postId: '' };
-  @Prop authenticated: boolean = false;
+  @Prop @Watch('onAuthenticationChanged') authenticated: boolean = false;
   @Prop refreshVersion: number = 0;
+  @Link imagePreviewIndex: number;
   onBack: () => void = () => {};
   onLogin: () => void = () => {};
   onChanged: () => void = () => {};
@@ -37,22 +39,91 @@ export struct ForumPostDetailPage {
   @State deleteCommentId: string = '';
   @State deleteBusy: boolean = false;
   @State deleteError: string = '';
+  @State imageScale: number = 1;
+  @State imageOffsetX: number = 0;
+  @State imageOffsetY: number = 0;
+  @State postContentHeight: number = 0;
+  private detailScroller: Scroller = new Scroller();
+  private imagePanBaseX: number = 0;
+  private imagePanBaseY: number = 0;
+  private commentFocusDone: boolean = false;
+  private commentFocusTimer: number = -1;
   disposed: boolean = false;
   navigated: boolean = false;
   private generation: number = 0;
   private commentGeneration: number = 0;
   private commentRequestKey: string = '';
   private commentRetryBody: string = '';
+  private keyboardModeChanged: boolean = false;
+  private previousKeyboardMode: KeyboardAvoidMode = 0;
 
   aboutToAppear(): void {
+    this.imagePreviewIndex = -1;
     this.load();
     this.loadComments(1, false);
   }
 
   aboutToDisappear(): void {
+    if (this.commentFocusTimer !== -1) clearTimeout(this.commentFocusTimer);
+    this.restoreKeyboardMode();
     this.disposed = true;
     this.generation += 1;
     this.commentGeneration += 1;
+  }
+
+  private onAuthenticationChanged(): void {
+    if (!this.disposed && this.detail !== null) {
+      this.load();
+      this.loadComments(1, false);
+    }
+  }
+
+  private resizeForKeyboard(): void {
+    if (this.keyboardModeChanged) return;
+    const context = this.getUIContext();
+    this.previousKeyboardMode = context.getKeyboardAvoidMode();
+    context.setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+    this.keyboardModeChanged = true;
+  }
+
+  private restoreKeyboardMode(): void {
+    if (!this.keyboardModeChanged) return;
+    this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardMode);
+    this.keyboardModeChanged = false;
+  }
+
+  private resetImageZoom(): void {
+    this.imageScale = 1;
+    this.imageOffsetX = 0;
+    this.imageOffsetY = 0;
+    this.imagePanBaseX = 0;
+    this.imagePanBaseY = 0;
+  }
+
+  private panImage(x: number, y: number): void {
+    this.imageOffsetX = Math.max(-180, Math.min(180, this.imagePanBaseX + x));
+    this.imageOffsetY = Math.max(-280, Math.min(280, this.imagePanBaseY + y));
+  }
+
+  private showComments(): void {
+    this.getUIContext().getFocusController().clearFocus();
+    this.detailScroller.scrollTo({ xOffset: 0, yOffset: this.postContentHeight + 8 });
+  }
+
+  private onPostAreaChanged(newArea: Area): void {
+    this.postContentHeight = Number(newArea.height);
+    this.scheduleCommentFocus();
+  }
+
+  private scheduleCommentFocus(): void {
+    if (!this.param.focusComments || this.commentFocusDone || this.commentFocusTimer !== -1 ||
+      this.commentsLoading || this.postContentHeight <= 0 || this.detail === null) return;
+    this.commentFocusTimer = setTimeout(() => {
+      this.commentFocusTimer = -1;
+      if (this.disposed || this.detail === null) return;
+      this.commentFocusDone = true;
+      this.showComments();
+    }, 100);
   }
 
   private fail(error: Object): string {
@@ -87,6 +158,16 @@ export struct ForumPostDetailPage {
     }
   }
 
+  private mergeComments(current: ForumCommentView[], incoming: ForumCommentView[]): ForumCommentView[] {
+    const byId: Map<string, ForumCommentView> = new Map();
+    current.forEach((item: ForumCommentView) => { byId.set(item.id, item); });
+    incoming.forEach((item: ForumCommentView) => { byId.set(item.id, item); });
+    return Array.from(byId.values()).sort((a: ForumCommentView, b: ForumCommentView): number => {
+      const timeOrder: number = a.createdAt.localeCompare(b.createdAt);
+      return timeOrder === 0 ? a.id.localeCompare(b.id) : timeOrder;
+    });
+  }
+
   async loadComments(targetPage: number, append: boolean): Promise<void> {
     const generation: number = ++this.commentGeneration;
     this.commentsLoading = true;
@@ -94,7 +175,7 @@ export struct ForumPostDetailPage {
     try {
       const result: ApiPage<ForumCommentView> = await ForumService.listComments(this.param.postId, targetPage);
       if (this.disposed || generation !== this.commentGeneration) return;
-      this.comments = append ? this.comments.concat(result.items) : result.items;
+      this.comments = append ? this.mergeComments(this.comments, result.items) : result.items;
       this.commentPage = result.pagination.page;
       this.commentTotalPages = result.pagination.totalPages;
     } catch (error) {
@@ -106,7 +187,10 @@ export struct ForumPostDetailPage {
         this.errorText = this.commentsError;
       }
     } finally {
-      if (!this.disposed && generation === this.commentGeneration) this.commentsLoading = false;
+      if (!this.disposed && generation === this.commentGeneration) {
+        this.commentsLoading = false;
+        this.scheduleCommentFocus();
+      }
     }
   }
 
@@ -131,7 +215,7 @@ export struct ForumPostDetailPage {
     try {
       const created: ForumCommentView = await ForumService.createComment(this.param.postId, body, this.commentRequestKey);
       if (this.disposed || SessionService.sessionStamp() !== sessionStamp) return;
-      this.comments = this.comments.concat(created);
+      this.comments = this.mergeComments(this.comments, [created]);
       this.commentDraft = '';
       this.commentRequestKey = '';
       this.commentRetryBody = '';
@@ -250,21 +334,29 @@ export struct ForumPostDetailPage {
 
   @Builder
   commentCard(item: ForumCommentView) {
-    Column({ space: 8 }) {
-      Row({ space: 10 }) {
-        Text(item.author.displayName).fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
-        Text(detailTimeText(item.createdAt)).fontSize(11).fontColor('#879198')
-        if (item.actions.canDelete) {
-          Text('删除').fontSize(12).fontColor('#B04438').padding({ left: 10, right: 2 }).onClick(() => {
-            this.openDeleteComment(item.id);
-          })
-        }
-      }.width('100%')
-      Text(item.body).fontSize(15).lineHeight(23).fontColor('#30393F').width('100%')
+    Row({ space: 10 }) {
+      Image($r('app.media.forum_avatar')).width(32).height(32).alignSelf(ItemAlign.Start)
+      Column({ space: 6 }) {
+        Row({ space: 6 }) {
+          Text(item.author.displayName).fontSize(13).fontWeight(FontWeight.Medium).fontColor(FORUM_SECONDARY)
+          if (this.detail !== null && item.author.id === this.detail.author.id) {
+            Text('作者').fontSize(10).fontColor(FORUM_INK).backgroundColor('#F7E9AD')
+              .padding({ left: 4, right: 4, top: 1, bottom: 1 }).borderRadius(3)
+          }
+          Blank().layoutWeight(1)
+          if (item.actions.canDelete) {
+            Text('删除').fontSize(12).fontColor('#B04438').padding({ left: 10, right: 2 }).onClick(() => {
+              this.openDeleteComment(item.id);
+            })
+          }
+        }.width('100%')
+        Text(item.body).fontSize(15).lineHeight(23).fontColor(FORUM_INK).width('100%')
+        Text(detailTimeText(item.createdAt)).fontSize(11).fontColor(FORUM_MUTED).width('100%')
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
     }
     .width('100%')
     .padding({ top: 14, bottom: 14 })
-    .alignItems(HorizontalAlign.Start)
+    .alignItems(VerticalAlign.Top)
   }
 
   @Builder
@@ -302,13 +394,56 @@ export struct ForumPostDetailPage {
     }.width('100%').height('100%').justifyContent(FlexAlign.End)
   }
 
+  @Builder
+  detailHeader() {
+    Row() {
+      Button({ type: ButtonType.Normal }) {
+        Image($r('app.media.detail_back')).width(22).height(22)
+      }.width(44).height(48).padding(0).backgroundColor(Color.Transparent)
+        .accessibilityText('返回').onClick(this.onBack)
+      Text('帖子').fontSize(19).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).layoutWeight(1)
+      Button({ type: ButtonType.Normal }) {
+        Image($r('app.media.detail_refresh')).width(21).height(21)
+      }.width(44).height(48).padding(0).backgroundColor(Color.Transparent)
+        .accessibilityText('刷新帖子').onClick(() => {
+          this.load();
+          this.loadComments(1, false);
+        })
+    }.width('100%').height(56).padding({ left: 8, right: 8 }).backgroundColor(FORUM_SURFACE)
+  }
+
+  @Builder
+  commentBar() {
+    Column({ space: 4 }) {
+      if (this.commentError !== '') {
+        Text(this.commentError).fontSize(12).fontColor('#B04438').width('100%')
+      }
+      Row({ space: 10 }) {
+        TextInput({ text: $$this.commentDraft, placeholder: this.authenticated ? '写下你的想法…' : '登录后参与评论' })
+          .layoutWeight(1).height(42).fontSize(14).backgroundColor('#F2F3F5').borderRadius(21).maxLength(2000)
+          .enabled(!this.commentSending).onFocus(() => { this.resizeForKeyboard(); })
+          .onBlur(() => { this.restoreKeyboardMode(); })
+        Button(this.commentSending ? '发送中…' : (this.commentRequestKey === '' ? '发送' : '重试'))
+          .height(42).fontSize(14).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK).enabled(!this.commentSending)
+          .onClick(() => {
+            if (this.commentRequestKey === '') this.sendComment();
+            else this.retryComment();
+          })
+        Button({ type: ButtonType.Normal }) {
+          Row({ space: 4 }) {
+            Image($r('app.media.forum_comment')).width(18).height(18)
+            Text(`${this.detail?.commentCount ?? 0}`).fontSize(12).fontColor(FORUM_SECONDARY)
+          }
+        }.height(42).padding({ left: 4, right: 4 }).backgroundColor(Color.Transparent)
+          .accessibilityText(`查看 ${this.detail?.commentCount ?? 0} 条评论`).onClick(() => { this.showComments(); })
+      }.width('100%')
+    }.width('100%').padding({ left: 16, right: 16, top: 8, bottom: 12 }).backgroundColor(FORUM_SURFACE)
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
-        DetailHeader({ title: '帖子详情', onBack: this.onBack, refresh: true, onRefresh: () => {
-          this.load();
-          this.loadComments(1, false);
-        } })
+        this.detailHeader()
         if (this.loading && this.detail === null) {
           LoadingPanel({ text: '正在加载帖子…' }).layoutWeight(1)
         } else if (this.errorText !== '' && this.detail === null) {
@@ -317,39 +452,45 @@ export struct ForumPostDetailPage {
             this.loadComments(1, false);
           } }).layoutWeight(1)
         } else if (this.detail !== null) {
-          Scroll() {
-            Column({ space: 16 }) {
+          Scroll(this.detailScroller) {
+            Column({ space: 8 }) {
               Column({ space: 14 }) {
-                Text(forumCategoryLabel(this.detail!.category)).fontSize(12).fontColor('#376D9C')
-                Text(this.detail!.title).fontSize(25).fontWeight(FontWeight.Bold).lineHeight(34).width('100%')
+                Text(forumCategoryLabel(this.detail!.category)).fontSize(12).fontColor(FORUM_SECONDARY)
+                Text(this.detail!.title).fontSize(23).fontWeight(FontWeight.Bold).lineHeight(32)
+                  .fontColor(FORUM_INK).width('100%')
                 Row({ space: 10 }) {
-                  Text(this.detail!.author.displayName).fontSize(14).layoutWeight(1)
-                  Text(detailTimeText(this.detail!.createdAt)).fontSize(12).fontColor('#7C878E')
+                  Image($r('app.media.forum_avatar')).width(34).height(34)
+                  Column({ space: 3 }) {
+                    Text(this.detail!.author.displayName).fontSize(14).fontWeight(FontWeight.Medium).fontColor(FORUM_INK)
+                    Text(detailTimeText(this.detail!.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
+                  }.layoutWeight(1).alignItems(HorizontalAlign.Start)
                 }.width('100%')
-                Text(this.detail!.body).fontSize(16).lineHeight(27).fontColor('#28333A').width('100%')
+                Text(this.detail!.body).fontSize(16).lineHeight(27).fontColor(FORUM_INK).width('100%')
                 if (this.detail!.images.length > 0) {
                   Flex({ wrap: FlexWrap.Wrap }) {
-                    ForEach(this.detail!.images, (forumImage: ForumImageView) => {
-                      ForumPostImage({ url: forumImage.url }).width('31%').height(112).margin({ right: 8, bottom: 8 })
+                    ForEach(this.detail!.images, (forumImage: ForumImageView, index: number) => {
+                      ForumPostImage({ url: forumImage.url, cornerRadius: 8,
+                        onOpen: (): void => { this.resetImageZoom(); this.imagePreviewIndex = index; } })
+                        .width('31%').height(112).margin({ right: 8, bottom: 8 })
                     }, (forumImage: ForumImageView) => forumImage.id)
                   }.width('100%')
                 }
                 if (this.detail!.actions.canDelete) {
                   Button('删除帖子').fontSize(13).height(36).backgroundColor('#FBEAE7').fontColor('#B04438')
-                    .onClick(() => {
-                      this.openDeletePost();
-                    })
+                    .onClick(() => { this.openDeletePost(); })
                 }
-              }.width('100%').padding(18).backgroundColor(Color.White).borderRadius(20).alignItems(HorizontalAlign.Start)
+              }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 20 })
+                .backgroundColor(FORUM_SURFACE).alignItems(HorizontalAlign.Start)
+                .onAreaChange((_oldArea: Area, newArea: Area) => { this.onPostAreaChanged(newArea); })
 
               Column({ space: 4 }) {
-                Text(`评论 ${this.detail!.commentCount}`).fontSize(19).fontWeight(FontWeight.Bold).width('100%')
+                Text(`评论 ${this.detail!.commentCount}`).fontSize(17).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).width('100%')
                 if (this.commentsLoading && this.comments.length === 0) {
                   LoadingPanel({ text: '正在加载评论…' })
                 } else if (this.commentsError !== '' && this.comments.length === 0) {
                   ErrorPanel({ message: this.commentsError, onRetry: (): void => { this.loadComments(1, false); } })
                 } else if (this.comments.length === 0) {
-                  Text('还没有评论，欢迎补充真实经验。').fontSize(14).fontColor('#7A858D').padding(20).width('100%')
+                  Text('还没有评论，欢迎补充真实经验。').fontSize(14).fontColor(FORUM_MUTED).padding({ top: 24, bottom: 24 }).width('100%')
                 } else {
                   ForEach(this.comments, (item: ForumCommentView) => {
                     this.commentCard(item);
@@ -359,41 +500,45 @@ export struct ForumPostDetailPage {
                   }
                   if (this.commentPage < this.commentTotalPages) {
                     Button(this.commentsLoading ? '加载中…' : '加载更多评论').fontSize(13).enabled(!this.commentsLoading)
-                      .onClick(() => {
-                        this.loadComments(this.commentPage + 1, true);
-                      })
+                      .onClick(() => { this.loadComments(this.commentPage + 1, true); })
                   }
                 }
-              }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(20).alignItems(HorizontalAlign.Start)
-            }.width('100%').padding({ left: 16, right: 16, bottom: 20 })
+              }.width('100%').padding(16).backgroundColor(FORUM_SURFACE).alignItems(HorizontalAlign.Start)
+            }.width('100%')
           }.width('100%').layoutWeight(1).scrollBar(BarState.Off).align(Alignment.Top)
+          this.commentBar()
         }
-      }.width('100%').height('100%').backgroundColor('#F1F6F9')
+      }.width('100%').height('100%').backgroundColor(FORUM_BACKGROUND)
 
-      if (this.detail !== null) {
-        Row({ space: 10 }) {
-          TextInput({ text: $$this.commentDraft, placeholder: this.authenticated ? '写下你的评论…' : '登录后参与评论' })
-            .layoutWeight(1).height(46).fontSize(14).backgroundColor('#F1F4F6').borderRadius(23).maxLength(2000)
-            .enabled(!this.commentSending)
-          Button(this.commentSending ? '发送中…' : (this.commentRequestKey === '' ? '发送' : '重试'))
-            .height(46).fontSize(14).backgroundColor('#2474D4').fontColor(Color.White).enabled(!this.commentSending)
-            .onClick(() => {
-              if (this.commentRequestKey === '') this.sendComment();
-              else this.retryComment();
-            })
-        }
-        .width('100%')
-        .padding({ left: 14, right: 14, top: 10, bottom: 14 })
-        .backgroundColor(Color.White)
-      }
-      if (this.commentError !== '') {
-        Text(this.commentError).fontSize(12).fontColor('#B04438').backgroundColor(Color.White).width('100%')
-          .padding({ left: 18, right: 18, bottom: 8 })
-      }
       if (this.deletePostOpen) {
         this.deleteSheet(true);
       } else if (this.deleteCommentId !== '') {
         this.deleteSheet(false);
+      }
+      if (this.imagePreviewIndex >= 0 && this.detail !== null) {
+        Column() {
+          Row() {
+            Button('关闭').fontSize(14).fontColor(Color.White).backgroundColor(Color.Transparent)
+              .onClick(() => { this.imagePreviewIndex = -1; })
+            Text(this.imageScale > 1 ? '拖动查看 · 双击还原' : '双击放大').fontSize(12).fontColor('#B5B5B5')
+              .textAlign(TextAlign.Center).layoutWeight(1)
+            Text(`${this.imagePreviewIndex + 1} / ${this.detail!.images.length}`)
+              .fontSize(14).fontColor(Color.White)
+          }.width('100%').height(56).padding({ left: 12, right: 20 })
+          Swiper() {
+            ForEach(this.detail!.images, (forumImage: ForumImageView) => {
+              ForumPostImage({ url: forumImage.url, cornerRadius: 0, imageFit: ImageFit.Contain,
+                imageBackground: '#101010', viewer: true, viewerZoomed: this.imageScale > 1,
+                onZoom: (): void => { if (this.imageScale > 1) this.resetImageZoom(); else this.imageScale = 2; },
+                onPan: (x: number, y: number): void => { this.panImage(x, y); },
+                onPanEnd: (): void => { this.imagePanBaseX = this.imageOffsetX; this.imagePanBaseY = this.imageOffsetY; } })
+                .scale({ x: this.imageScale, y: this.imageScale })
+                .translate({ x: this.imageOffsetX, y: this.imageOffsetY })
+            }, (forumImage: ForumImageView) => forumImage.id)
+          }.index(this.imagePreviewIndex).loop(false).indicator(false).disableSwipe(this.imageScale > 1)
+            .layoutWeight(1).width('100%')
+            .onChange((index: number) => { this.resetImageZoom(); this.imagePreviewIndex = index; })
+        }.width('100%').height('100%').backgroundColor('#101010')
       }
     }.width('100%').height('100%')
   }

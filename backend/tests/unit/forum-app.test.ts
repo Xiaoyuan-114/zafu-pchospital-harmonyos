@@ -570,7 +570,7 @@ test("根页返回只关闭论坛搜索，不截获子页面或其他主栏的�
 
 type DetailCall = { method: string; args: unknown[] };
 interface DetailApi {
-  param: { postId: string };
+  param: { postId: string; focusComments?: boolean };
   authenticated: boolean;
   disposed: boolean;
   navigated: boolean;
@@ -578,10 +578,16 @@ interface DetailApi {
   comments: Array<{ id: string; body: string }>;
   commentDraft: string;
   commentSending: boolean;
+  commentsLoading: boolean;
   deletePostOpen: boolean;
   deleteCommentId: string;
   errorText: string;
   aboutToDisappear(): void;
+  onAuthenticationChanged(): void;
+  mergeComments(current: Array<{ id: string; body: string; createdAt: string }>, incoming: Array<{ id: string; body: string; createdAt: string }>): Array<{ id: string; body: string; createdAt: string }>;
+  getUIContext(): { getFocusController(): { clearFocus(): void } };
+  onPostAreaChanged(area: { height: number }): void;
+  loadComments(page: number, append: boolean): Promise<void>;
   load(): Promise<void>;
   sendComment(): Promise<void>;
   retryComment(): Promise<void>;
@@ -599,7 +605,7 @@ function detailHarness() {
   const state = source
     .slice(start, source.indexOf("  @Builder", start))
     .replace("export struct ForumPostDetailPage", "class ForumPostDetailPage")
-    .replace(/@(State|Prop)\s+/g, "")
+    .replace(/@(State|Prop|Link)\s+/g, "")
     .replace(/@Watch\('[^']+'\)\s*/g, "")
     + "\nnew ForumPostDetailPage();";
   const code = ts.transpileModule(state, {
@@ -612,6 +618,9 @@ function detailHarness() {
   let nextKey = 0;
   let postDeleteError: Error | null = null;
   const detail = runInNewContext(code, {
+    Scroller: class { scrollTo(offset: unknown) { calls.push({ method: "scroll", args: [offset] }); } },
+    setTimeout,
+    clearTimeout,
     ForumService: {
       detail: async (id: string) => {
         calls.push({ method: "detail", args: [id] });
@@ -628,7 +637,10 @@ function detailHarness() {
           actions: { canDelete: true, canUploadImages: true, canComment: true },
         };
       },
-      listComments: async () => ({ items: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } }),
+      listComments: async () => {
+        calls.push({ method: "comments", args: [] });
+        return { items: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } };
+      },
       newCreateRequestKey: () => `comment-key-${++nextKey}`,
       createComment: (id: string, body: string, key: string) => {
         calls.push({ method: "comment", args: [id, body, key] });
@@ -677,6 +689,40 @@ function detailHarness() {
     },
   };
 }
+
+test("登录状态变化时刷新详情与评论的服务端操作权限", async () => {
+  const { detail, calls } = detailHarness();
+  detail.onAuthenticationChanged();
+  await settle();
+  assert.deepEqual(calls.map((call) => call.method), ["detail", "comments"]);
+  detail.aboutToDisappear();
+  detail.onAuthenticationChanged();
+  assert.equal(calls.length, 2);
+});
+
+test("从列表评论入口进入时等待评论和正文布局后定位", async () => {
+  const { detail, calls } = detailHarness();
+  detail.param = { postId: "post-1", focusComments: true };
+  detail.getUIContext = () => ({ getFocusController: () => ({ clearFocus() {} }) });
+  detail.commentsLoading = true;
+  detail.onPostAreaChanged({ height: 1200 });
+  assert.equal(calls.filter((call) => call.method === "scroll").length, 0);
+  await detail.loadComments(1, false);
+  await new Promise((resolve) => setTimeout(resolve, 130));
+  const scrolls = calls.filter((call) => call.method === "scroll");
+  assert.equal(scrolls.length, 1);
+  assert.equal((scrolls[0].args[0] as { yOffset: number }).yOffset, 1208);
+});
+
+test("分页补入新评论时去重并按服务端时间顺序排列", () => {
+  const { detail } = detailHarness();
+  const comment = (id: string, createdAt: string) => ({ id, body: id, createdAt });
+  const result = detail.mergeComments(
+    [comment("first", "2026-11-03T01:00:00Z"), comment("new", "2026-11-03T03:00:00Z")],
+    [comment("middle", "2026-11-03T02:00:00Z"), comment("new", "2026-11-03T03:00:00Z")],
+  );
+  assert.deepEqual(Array.from(result, (item) => item.id), ["first", "middle", "new"]);
+});
 
 test("同一评论提交与重试复用幂等键，离开后的迟到回调不导航", async () => {
   const { detail, calls, commentKey, releaseComment } = detailHarness();
@@ -896,6 +942,7 @@ test("发帖、评论和删除回调同时刷新主论坛列表与我的帖子",
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
   const sandbox = {
+    $forumImagePreviewIndex: -1,
     pathStack: { pop() {} },
     activityRevision: 0,
     forumRefreshVersion: 0,
