@@ -133,6 +133,7 @@ export struct HomePage {
   private loginIntent: LoginIntent = new LoginIntent();
   private loginBusy: boolean = false;
   private customerOrderBackHandler: () => boolean = () => false;
+  private forumComposeBackHandler: () => boolean = () => false;
   @State knowledgeSearchRevision: number = 0;
   private registerBusy: boolean = false;
   private expiring: boolean = false;
@@ -450,6 +451,8 @@ export struct HomePage {
         });
       } else if (name === ROUTE_FORUM_COMPOSE) {
         ForumComposePage({
+          onBack: (): void => { this.pathStack.pop(); },
+          onRegisterBackHandler: (handler: () => boolean): void => { this.forumComposeBackHandler = handler; },
           onSaved: (postId: string): void => {
             this.pathStack.pop();
             this.activityRevision += 1;
@@ -461,6 +464,7 @@ export struct HomePage {
         });
       } else if (name === ROUTE_MY_FORUM_POSTS) {
         MyForumPostsPage({
+          onBack: (): void => { this.pathStack.pop(); },
           refreshVersion: this.activityRevision,
           onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
           onSessionExpired: (): void => { this.expireSession(); }
@@ -704,7 +708,8 @@ export struct HomePage {
     .hideTitleBar(name === ROUTE_PERSONAL_PROFILE || name === ROUTE_REPAIR_ORDERS || name === ROUTE_STAFF_ORDERS
       || name === ROUTE_STAFF_ORDER_DETAIL || name === ROUTE_PUBLIC_GUIDES || name === ROUTE_CASE_DETAIL
       || name === ROUTE_CASE_LIBRARY || name === ROUTE_PUBLIC_CASES || name === ROUTE_PUBLIC_CASE_DETAIL || name === ROUTE_KNOWLEDGE_SEARCH
-      || name === ROUTE_KNOWLEDGE_LIBRARY || name === ROUTE_FORUM_POST || name.indexOf('shopping') >= 0)
+      || name === ROUTE_KNOWLEDGE_LIBRARY || name === ROUTE_FORUM_POST || name === ROUTE_FORUM_COMPOSE
+      || name === ROUTE_MY_FORUM_POSTS || name.indexOf('shopping') >= 0)
     .title(name === ROUTE_LOGIN ? '登录' : routeTitle(name))
     .onShown(() => {
       if (name === ROUTE_KNOWLEDGE_SEARCH) this.knowledgeSearchRevision += 1;
@@ -720,6 +725,7 @@ export struct HomePage {
     .onBackPressed((): boolean => {
       // 认证写请求进行中 / 强制改密未完成：拦下返回，避免迟到响应把会话写成另一个账号。
       if (this.interceptBack(name)) return true;
+      if (name === ROUTE_FORUM_COMPOSE && this.forumComposeBackHandler()) return true;
       if (name === ROUTE_FORUM_POST) {
         if (this.forumImagePreviewIndex >= 0) {
           this.forumImagePreviewIndex = -1;

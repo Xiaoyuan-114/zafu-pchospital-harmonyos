@@ -1,8 +1,8 @@
 import { image } from '@kit.ImageKit';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { SessionService } from '../../core/auth/SessionService';
-import { DetailHeader } from '../../core/ui/ReferenceDetail';
-import { PickedImage, PhotoPicker } from '../repair/PhotoPicker';
+import { KeyboardAvoidMode } from '@kit.ArkUI';
+import { PickedImage, PickImagesResult, PhotoPicker } from '../repair/PhotoPicker';
 import {
   FORUM_CATEGORY_EXPERIENCE,
   FORUM_CATEGORY_GENERAL,
@@ -13,6 +13,7 @@ import {
   forumCategoryLabel
 } from './ForumContract';
 import { ForumService } from './ForumService';
+import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK, FORUM_MUTED, FORUM_SECONDARY, FORUM_SURFACE } from './ForumTheme';
 
 interface PendingForumImage extends PickedImage {
   uploadKey: string;
@@ -22,15 +23,18 @@ interface PendingForumImage extends PickedImage {
 @Component
 struct PendingForumImageView {
   @Prop fileName: string = '';
-  @Prop bytes: ArrayBuffer = new ArrayBuffer(0);
+  @Prop imageFit: ImageFit = ImageFit.Cover;
+  bytes: ArrayBuffer = new ArrayBuffer(0);
   @State pixelMap: image.PixelMap | undefined = undefined;
   @State failed: boolean = false;
+  private generation: number = 0;
 
   aboutToAppear(): void {
     this.decode();
   }
 
   aboutToDisappear(): void {
+    this.generation += 1;
     if (this.pixelMap !== undefined) {
       this.pixelMap.release().catch(() => {
       });
@@ -39,19 +43,29 @@ struct PendingForumImageView {
   }
 
   private async decode(): Promise<void> {
+    const generation: number = ++this.generation;
     try {
       const source: image.ImageSource = image.createImageSource(this.bytes);
-      this.pixelMap = await source.createPixelMap();
-      source.release();
+      let decoded: image.PixelMap;
+      try {
+        decoded = await source.createPixelMap();
+      } finally {
+        source.release();
+      }
+      if (generation !== this.generation) {
+        decoded.release().catch(() => {});
+        return;
+      }
+      this.pixelMap = decoded;
     } catch (error) {
-      this.failed = true;
+      if (generation === this.generation) this.failed = true;
     }
   }
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.pixelMap !== undefined) {
-        Image(this.pixelMap).width('100%').height('100%').objectFit(ImageFit.Cover)
+        Image(this.pixelMap).width('100%').height('100%').objectFit(this.imageFit)
       } else {
         Text(this.failed ? '图片读取失败' : '正在读取图片…').fontSize(11).fontColor('#737F87')
       }
@@ -64,22 +78,75 @@ struct PendingForumImageView {
 export struct ForumComposePage {
   onSaved: (postId: string) => void = () => {};
   onSessionExpired: () => void = () => {};
+  onBack: () => void = () => {};
+  onRegisterBackHandler: (handler: () => boolean) => void = () => {};
   @State savedId: string = '';
   @State savedPostId: string = '';
   @State category: string = FORUM_CATEGORY_GENERAL;
   @State title: string = '';
   @State body: string = '';
   @State pending: PendingForumImage[] = [];
+  @State uploadedCount: number = 0;
   @State createRequestKey: string = '';
   @State submitting: boolean = false;
   @State picking: boolean = false;
   @State uploadMessage: string = '';
   @State errorText: string = '';
   @State previewIndex: number = -1;
+  @State leaveConfirmOpen: boolean = false;
   private disposed: boolean = false;
+  private keyboardModeChanged: boolean = false;
+  private previousKeyboardMode: KeyboardAvoidMode = 0;
+
+  aboutToAppear(): void {
+    this.onRegisterBackHandler((): boolean => this.requestBack());
+  }
 
   aboutToDisappear(): void {
+    this.restoreKeyboardMode();
+    this.onRegisterBackHandler((): boolean => false);
     this.disposed = true;
+  }
+
+  private resizeForKeyboard(): void {
+    if (this.keyboardModeChanged) return;
+    const context = this.getUIContext();
+    this.previousKeyboardMode = context.getKeyboardAvoidMode();
+    context.setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+    this.keyboardModeChanged = true;
+  }
+
+  private restoreKeyboardMode(): void {
+    if (!this.keyboardModeChanged) return;
+    this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardMode);
+    this.keyboardModeChanged = false;
+  }
+
+  requestBack(): boolean {
+    if (this.previewIndex >= 0) {
+      this.previewIndex = -1;
+      return true;
+    }
+    if (this.leaveConfirmOpen) {
+      this.leaveConfirmOpen = false;
+      return true;
+    }
+    if (this.submitting || this.picking) {
+      this.errorText = this.submitting ? '正在发布，请稍候' : '正在读取图片，请稍候';
+      return true;
+    }
+    if (this.savedId !== '' || this.createRequestKey !== '' || this.title.trim() !== '' ||
+      this.body.trim() !== '' || this.pending.length > 0 || this.category !== FORUM_CATEGORY_GENERAL) {
+      this.leaveConfirmOpen = true;
+      return true;
+    }
+    return false;
+  }
+
+  leaveEditor(): void {
+    this.leaveConfirmOpen = false;
+    if (this.savedId !== '') this.onSaved(this.savedId);
+    else this.onBack();
   }
 
   private fail(error: Object): void {
@@ -94,7 +161,7 @@ export struct ForumComposePage {
 
   async pickImages(): Promise<void> {
     if (this.submitting || this.picking) return;
-    const remain: number = 9 - this.pending.length;
+    const remain: number = 9 - this.uploadedCount - this.pending.length;
     if (remain <= 0) {
       this.errorText = '每篇帖子最多 9 张图片';
       return;
@@ -102,17 +169,18 @@ export struct ForumComposePage {
     this.picking = true;
     this.errorText = '';
     try {
-      const picked: PickedImage[] = await PhotoPicker.pick(remain);
+      const result: PickImagesResult = await PhotoPicker.pickDetailed(remain);
       if (this.disposed) return;
-      if (picked.length === 0) {
-        this.errorText = '未读取到可用图片；请检查相册权限、文件格式或是否已取消选择';
+      if (result.images.length === 0) {
+        if (result.selectedCount > 0) this.errorText = '未读取到可用图片，请检查文件格式并重新选择';
         return;
       }
       const additions: PendingForumImage[] = [];
-      for (const item of picked) {
+      for (const item of result.images) {
         additions.push({ fileName: item.fileName, mimeType: item.mimeType, data: item.data, uploadKey: ForumService.newUploadKey() });
       }
       this.pending = this.pending.concat(additions);
+      if (result.images.length < result.selectedCount) this.errorText = '部分图片未能读取，请重新选择';
     } catch (error) {
       if (!this.disposed) this.errorText = '本地图片读取失败，请重新选择';
     } finally {
@@ -137,7 +205,7 @@ export struct ForumComposePage {
       this.errorText = '正文需为 1–10000 字';
       return false;
     }
-    if (this.pending.length > 9) {
+    if (this.uploadedCount + this.pending.length > 9) {
       this.errorText = '每篇帖子最多 9 张图片';
       return false;
     }
@@ -172,6 +240,7 @@ export struct ForumComposePage {
         await ForumService.uploadImages(id, [item], [item.uploadKey]);
         if (this.disposed || SessionService.sessionStamp() !== sessionStamp) return;
         this.pending = this.pending.filter((candidate: PendingForumImage) => candidate.uploadKey !== item.uploadKey);
+        this.uploadedCount += 1;
       }
       if (this.disposed || SessionService.sessionStamp() !== sessionStamp) return;
       this.savedPostId = id;
@@ -182,6 +251,12 @@ export struct ForumComposePage {
       this.onSaved(id);
     } catch (error) {
       if (this.disposed || SessionService.sessionStamp() !== sessionStamp) return;
+      const apiError = error as ApiRequestError;
+      // 只有明确的客户端拒绝才允许修改并新建请求；网络异常、服务端错误及超时保留原幂等键。
+      if (this.savedId === '' && apiError.status >= 400 && apiError.status < 500 && apiError.status !== 408 &&
+        apiError.status !== 429) {
+        this.createRequestKey = '';
+      }
       this.uploadMessage = this.savedId === '' ? '' : '帖子已创建；重试只会续传剩余图片，不会重复发帖';
       this.fail(error as Object);
     } finally {
@@ -197,7 +272,8 @@ export struct ForumComposePage {
       })
       Column({ space: 12 }) {
         Text(this.pending[this.previewIndex].fileName).fontSize(14).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        PendingForumImageView({ fileName: this.pending[this.previewIndex].fileName, bytes: this.pending[this.previewIndex].data })
+        PendingForumImageView({ fileName: this.pending[this.previewIndex].fileName,
+          bytes: this.pending[this.previewIndex].data, imageFit: ImageFit.Contain })
           .width('100%').height(360)
         Button('关闭预览').width('100%').backgroundColor('#EEF2F5').fontColor('#35424B').onClick(() => {
           this.previewIndex = -1;
@@ -206,82 +282,121 @@ export struct ForumComposePage {
     }.width('100%').height('100%').justifyContent(FlexAlign.End)
   }
 
+  @Builder
+  leaveSheet() {
+    Column() {
+      Column().width('100%').layoutWeight(1).backgroundColor('#66000000')
+        .onClick(() => { this.leaveConfirmOpen = false; })
+      Column({ space: 14 }) {
+        Text(this.savedId !== '' ? '退出并保留已发布的帖子？' : '放弃本次编辑？')
+          .fontSize(19).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).width('100%')
+        Text(this.savedId !== '' ? '帖子已发布，剩余图片不会上传。退出后将查看已发布的帖子。' :
+          (this.createRequestKey !== '' ? '发布结果尚未确认，继续留在这里可以安全重试；退出后无法恢复本次编辑。' :
+          '离开后当前内容与已选图片将丢失。'))
+          .fontSize(14).fontColor(FORUM_SECONDARY).lineHeight(22).width('100%')
+        Button('继续编辑').width('100%').height(46).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+          .onClick(() => { this.leaveConfirmOpen = false; })
+        Button(this.savedId !== '' ? '退出并查看帖子' : '放弃并退出')
+          .width('100%').height(42).backgroundColor('#F2F3F5').fontColor('#B04438')
+          .onClick(() => { this.leaveEditor(); })
+      }.width('100%').padding({ left: 20, right: 20, top: 22, bottom: 24 })
+        .backgroundColor(FORUM_SURFACE).borderRadius({ topLeft: 20, topRight: 20 })
+    }.width('100%').height('100%').justifyContent(FlexAlign.End)
+  }
+
+  @Builder
+  editorHeader() {
+    Row() {
+      Button('关闭').fontSize(14).fontColor(FORUM_INK).backgroundColor(Color.Transparent)
+        .padding({ left: 0, right: 12 }).height(48).onClick(() => {
+          if (!this.requestBack()) this.onBack();
+        })
+      Text('发布帖子').fontSize(18).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).layoutWeight(1)
+      Button(this.submitting ? '发布中…' : (this.savedId !== '' ? '继续上传' :
+        (this.createRequestKey !== '' ? '重试发布' : '发布')))
+        .fontSize(14).height(38).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+        .enabled(!this.submitting && !this.picking).onClick(() => { this.submit(); })
+    }.width('100%').height(56).padding({ left: 16, right: 16 }).backgroundColor(FORUM_SURFACE)
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
-        DetailHeader({ title: '发布帖子', onBack: () => {}, refresh: false })
+        this.editorHeader()
+        if (this.errorText !== '') {
+          Text(this.errorText).fontSize(13).fontColor($r('app.color.danger')).width('100%')
+            .padding({ left: 16, right: 16, top: 8, bottom: 8 }).backgroundColor('#FFF4F1')
+        }
+        if (this.uploadMessage !== '') {
+          Text(this.uploadMessage).fontSize(13).fontColor(FORUM_SECONDARY).width('100%')
+            .padding({ left: 16, right: 16, top: 8, bottom: 8 }).backgroundColor('#FFF8E0')
+        }
         Scroll() {
           Column({ space: 16 }) {
-            Column({ space: 12 }) {
-              Text('选择分类').fontSize(15).fontWeight(FontWeight.Medium).width('100%')
+            Column({ space: 14 }) {
+              Text('选择分类').fontSize(13).fontColor(FORUM_SECONDARY).width('100%')
               Row({ space: 8 }) {
                 ForEach([FORUM_CATEGORY_GENERAL, FORUM_CATEGORY_EXPERIENCE, FORUM_CATEGORY_QUESTION], (name: string) => {
-                  Button(forumCategoryLabel(name)).fontSize(13).height(38)
-                    .backgroundColor(this.category === name ? '#2474D4' : '#E9EFF4')
-                    .fontColor(this.category === name ? Color.White : '#46545E')
-                    .enabled(!this.submitting && this.savedId === '')
-                    .onClick(() => {
-                      this.category = name;
-                    })
+                  Button(forumCategoryLabel(name)).fontSize(13).height(36)
+                    .backgroundColor(this.category === name ? FORUM_ACCENT : '#F2F3F5')
+                    .fontColor(this.category === name ? FORUM_INK : FORUM_SECONDARY)
+                    .enabled(!this.submitting && this.savedId === '' && this.createRequestKey === '')
+                    .onClick(() => { this.category = name; })
                 })
               }.width('100%')
-              TextInput({ text: $$this.title, placeholder: '标题（最多 120 字）' })
-                .height(48).fontSize(16).backgroundColor('#F1F4F6').borderRadius(12).maxLength(120)
-                .enabled(!this.submitting && this.savedId === '')
-              TextArea({ text: $$this.body, placeholder: '分享真实维修经验或提出具体问题（最多 10000 字）' })
-                .height(190).fontSize(16).backgroundColor('#F1F4F6').borderRadius(12).maxLength(10000)
-                .enabled(!this.submitting && this.savedId === '')
-            }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(20).alignItems(HorizontalAlign.Start)
-
-            Column({ space: 12 }) {
-              Row() {
-                Text(`图片 ${this.pending.length}/9`).fontSize(16).fontWeight(FontWeight.Medium).layoutWeight(1)
-                Button(this.picking ? '读取中…' : '选择图片').fontSize(13).height(36).enabled(!this.submitting && !this.picking)
-                  .onClick(() => {
-                    this.pickImages();
-                  })
-              }.width('100%')
-              if (this.pending.length > 0) {
-                Flex({ wrap: FlexWrap.Wrap }) {
-                  ForEach(this.pending, (item: PendingForumImage, index: number) => {
-                    Stack({ alignContent: Alignment.TopEnd }) {
-                      PendingForumImageView({ fileName: item.fileName, bytes: item.data })
-                        .width('100%').height('100%').onClick(() => {
-                          this.previewIndex = index;
-                        })
-                      Text('×').fontSize(20).fontColor(Color.White).backgroundColor('#99000000').borderRadius(14)
-                        .width(28).height(28).textAlign(TextAlign.Center).onClick(() => {
-                          this.removePending(index);
-                        })
-                    }.width('31%').height(112).margin({ right: 8, bottom: 8 })
-                  }, (item: PendingForumImage) => item.uploadKey)
-                }.width('100%')
-              } else {
-                Text('可添加真实 JPEG / PNG / WebP 图片；读取失败会明确提示。').fontSize(13).fontColor('#78848C')
+              TextInput({ text: $$this.title, placeholder: '写一个清楚的标题' })
+                .height(52).fontSize(19).fontWeight(FontWeight.Medium).backgroundColor(Color.Transparent)
+                .borderRadius(0).padding(0).maxLength(120)
+                .enabled(!this.submitting && this.savedId === '' && this.createRequestKey === '')
+                .onFocus(() => { this.resizeForKeyboard(); }).onBlur(() => { this.restoreKeyboardMode(); })
+              Divider().color('#E9EAED')
+              TextArea({ text: $$this.body, placeholder: '分享经验，或描述遇到的问题…' })
+                .height(180).fontSize(16).lineHeight(25).backgroundColor(Color.Transparent).borderRadius(0).padding(0)
+                .maxLength(10000).enabled(!this.submitting && this.savedId === '' && this.createRequestKey === '')
+                .onFocus(() => { this.resizeForKeyboard(); }).onBlur(() => { this.restoreKeyboardMode(); })
+              if (this.title.length >= 100 || this.body.length >= 9000) {
+                Text(`标题 ${this.title.length}/120 · 正文 ${this.body.length}/10000`)
+                  .fontSize(11).fontColor(FORUM_MUTED).width('100%').textAlign(TextAlign.End)
               }
-            }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(20).alignItems(HorizontalAlign.Start)
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.pending, (item: PendingForumImage, index: number) => {
+                  Stack({ alignContent: Alignment.TopEnd }) {
+                    PendingForumImageView({ fileName: item.fileName, bytes: item.data })
+                      .width('100%').height('100%').onClick(() => { this.previewIndex = index; })
+                    Button('×').fontSize(20).fontColor(Color.White).backgroundColor('#99000000').borderRadius(14)
+                      .width(28).height(28).padding(0).accessibilityText('移除图片').enabled(!this.submitting)
+                      .onClick(() => { this.removePending(index); })
+                  }.width('31%').height(112).margin({ right: 8, bottom: 8 })
+                }, (item: PendingForumImage) => item.uploadKey)
+                if (this.uploadedCount + this.pending.length < 9) {
+                  Button({ type: ButtonType.Normal }) {
+                    Column({ space: 6 }) {
+                      Text('+').fontSize(30).fontColor(FORUM_SECONDARY)
+                      Text(this.picking ? '读取中…' : '添加图片').fontSize(12).fontColor(FORUM_SECONDARY)
+                    }.justifyContent(FlexAlign.Center)
+                  }.width('31%').height(112).margin({ right: 8, bottom: 8 }).borderRadius(8)
+                    .backgroundColor('#F2F3F5').enabled(!this.submitting && !this.picking)
+                    .accessibilityText('添加图片').onClick(() => { this.pickImages(); })
+                }
+              }.width('100%')
+              if (this.pending.length > 0 || this.uploadedCount > 0) {
+                Text(this.uploadedCount > 0 ? `已上传 ${this.uploadedCount}，待上传 ${this.pending.length} / 9 张` :
+                  `已选 ${this.pending.length}/9 张图片`).fontSize(12).fontColor(FORUM_MUTED).width('100%')
+              }
+            }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 20 })
+              .backgroundColor(FORUM_SURFACE).alignItems(HorizontalAlign.Start)
 
-            if (this.savedId !== '') {
-              Text('帖子已创建，当前只需完成剩余图片上传。').fontSize(13).fontColor('#8A5A00')
-                .padding(12).backgroundColor('#FFF8E8').borderRadius(12).width('100%')
+            if (this.savedId !== '' || this.createRequestKey !== '') {
+              Text(this.savedId !== '' ? '帖子已发布，请完成剩余图片上传。' : '发布结果尚未确认，请重试本次发布。')
+                .fontSize(13).fontColor('#765B00').padding(12).backgroundColor('#FFF8E0').borderRadius(8).width('100%')
             }
-            if (this.uploadMessage !== '') {
-              Text(this.uploadMessage).fontSize(13).fontColor('#526572').width('100%')
-            }
-            if (this.errorText !== '') {
-              Text(this.errorText).fontSize(13).fontColor($r('app.color.danger')).width('100%')
-            }
-            Button(this.submitting ? '提交中…' : (this.savedId === '' ? '发布帖子' : '续传剩余图片'))
-              .width('100%').height(48).fontSize(16).backgroundColor('#2474D4').fontColor(Color.White)
-              .enabled(!this.submitting && !this.picking)
-              .onClick(() => {
-                this.submit();
-              })
-          }.width('100%').padding({ left: 16, right: 16, bottom: 24 })
+          }.width('100%').padding({ bottom: 24 })
         }.width('100%').layoutWeight(1).scrollBar(BarState.Off).align(Alignment.Top)
-      }.width('100%').height('100%').backgroundColor('#F1F6F9')
+      }.width('100%').height('100%').backgroundColor(FORUM_BACKGROUND)
       if (this.previewIndex >= 0 && this.previewIndex < this.pending.length) {
         this.previewSheet();
+      } else if (this.leaveConfirmOpen) {
+        this.leaveSheet();
       }
     }.width('100%').height('100%')
   }
