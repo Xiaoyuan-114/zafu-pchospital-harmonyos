@@ -10,7 +10,7 @@ function page<T>(file: string, name: string, deps: Record<string, unknown>): T {
   const state = source.slice(0, source.indexOf("  @Builder"))
     .replace(/import[\s\S]*?from\s+['"][^'"]+['"];\s*/g, "")
     .replace(/@Watch\('[^']+'\)\s*/g, "")
-    .replace(/@(Component|State|Prop)\s*/g, "")
+    .replace(/@(Component|State|Prop|Link)\s*/g, "")
     .replace(`export struct ${name}`, `class ${name}`);
   const code = ts.transpileModule(state + `\n}\nnew ${name}();`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
