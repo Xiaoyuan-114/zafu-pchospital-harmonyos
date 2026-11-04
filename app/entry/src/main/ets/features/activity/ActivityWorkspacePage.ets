@@ -50,26 +50,44 @@ export struct ActivityWorkspacePage {
   }
   @Builder
   card(item: ActivitySummary, attended: boolean) {
-    Column({ space: 10 }) {
-      Text(item.title).fontSize(20).fontWeight(FontWeight.Bold).width('100%')
-      Text(`${activityTime(item.activityAt)} · ${activityStatusLabel(item.status)}`).fontSize(14).width('100%')
-      Text(`报名 ${item.registeredCount} / ${item.capacity}${this.admin ? '' : attended ? ' · 已出勤' : ' · 未出勤'}`).fontSize(14).width('100%')
-      if (this.admin) {
+    if (this.admin) {
+      Column({ space: 10 }) {
+        Text(item.title).fontSize(20).fontWeight(FontWeight.Bold).width('100%')
+        Text(`${activityTime(item.activityAt)} · ${activityStatusLabel(item.status)}`).fontSize(14).width('100%')
+        Text(`报名 ${item.registeredCount} / ${item.capacity}`).fontSize(14).width('100%')
         Row({ space: 10 }) {
           Button('编辑').enabled(!this.busy).onClick(() => { this.open(ROUTE_ACTIVITY_EDIT, item.id); })
           Button('报名管理').enabled(!this.busy).onClick(() => { this.open(ROUTE_ACTIVITY_REGISTRATION_ADMIN, item.id); })
         }
         Button('删除活动').enabled(!this.busy).fontColor('#C33B3B').backgroundColor('#FFF3F3').onClick(() => { this.remove(item.id); })
-      } else {
-        Button('进入现场看板').enabled(!this.busy).onClick(() => { this.open(ROUTE_ACTIVITY_BOARD, item.id); })
-      }
-    }.width('100%').padding(18).backgroundColor(Color.White).borderRadius(20)
+      }.width('100%').padding(18).backgroundColor(Color.White).borderRadius(20)
+    } else {
+    Column({ space: 12 }) {
+      Row() {
+        Text(attended ? '已出勤' : '未出勤').fontSize(12).fontColor('#536D86').layoutWeight(1)
+        Text(activityStatusLabel(item.status)).fontSize(12).fontColor('#28679F')
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor('#EAF3FB').borderRadius(16)
+      }.width('100%')
+      Text(item.title).fontSize(18).fontWeight(FontWeight.Bold).fontColor('#1B2732').lineHeight(27).width('100%')
+      Text(`活动时间  ${activityTime(item.activityAt)}`).fontSize(13).fontColor('#697786').width('100%')
+      Text(`报名 ${item.registeredCount} / ${item.capacity}`).fontSize(13).fontColor('#697786').width('100%')
+      Divider().color('#EEF1F3')
+      Button('进入现场看板  ›').width('100%').height(40).fontSize(14).fontColor('#2465AD')
+        .backgroundColor('#ECF4FC').enabled(!this.busy).onClick(() => { this.open(ROUTE_ACTIVITY_BOARD, item.id); })
+    }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(16).alignItems(HorizontalAlign.Start)
+    }
   }
   build() {
     Column({ space: 12 }) {
       Row({ space: 8 }) {
-        Text(this.admin ? '活动管理' : '成员活动出勤').fontSize(22).fontWeight(FontWeight.Bold).layoutWeight(1)
-        Button('刷新').enabled(!this.loading && !this.busy).onClick(() => { this.load(); })
+        if (this.admin) {
+          Text('活动管理').fontSize(22).fontWeight(FontWeight.Bold).layoutWeight(1)
+          Button('刷新').enabled(!this.loading && !this.busy).onClick(() => { this.load(); })
+        } else {
+          Text('选择活动查看现场').fontSize(14).fontColor('#697786').layoutWeight(1)
+          Button('刷新').height(36).fontSize(13).fontColor('#315F93').backgroundColor('#E3EDF7')
+            .enabled(!this.loading && !this.busy).onClick(() => { this.load(); })
+        }
       }.width('100%')
       if (this.admin) { Button('创建活动').width('100%').enabled(!this.busy).onClick(() => { this.open(ROUTE_ACTIVITY_EDIT, ''); }) }
       TextInput({ text: this.query, placeholder: '搜索活动标题' }).onChange((value: string) => { this.query = value; })
@@ -77,12 +95,20 @@ export struct ActivityWorkspacePage {
       if (this.errorText !== '') { ErrorPanel({ message: this.errorText, onRetry: (): void => { this.load(); } }) }
       List({ space: 12 }) {
         if (this.admin) {
-          ForEach(this.adminItems.filter((item: ActivityAdmin) => item.title.includes(this.query.trim())), (item: ActivityAdmin) => { ListItem() { this.card(item, false) } }, (item: ActivityAdmin) => item.id)
+          ForEach(this.adminItems.filter((item: ActivityAdmin) => item.title.includes(this.query.trim())), (item: ActivityAdmin) => { ListItem() { this.card(item, false) } }, (item: ActivityAdmin) => JSON.stringify(item))
         } else {
-          ForEach(this.staffItems.filter((item: StaffActivity) => item.title.includes(this.query.trim())), (item: StaffActivity) => { ListItem() { this.card(item, item.attended) } }, (item: StaffActivity) => item.id)
+          ForEach(this.staffItems.filter((item: StaffActivity) => item.title.includes(this.query.trim())), (item: StaffActivity) => { ListItem() { this.card(item, item.attended) } }, (item: StaffActivity) => JSON.stringify(item))
         }
         if (!this.loading && this.errorText === '' && (this.admin ? this.adminItems.filter((item: ActivityAdmin) => item.title.includes(this.query.trim())).length === 0 : this.staffItems.filter((item: StaffActivity) => item.title.includes(this.query.trim())).length === 0)) {
-          ListItem() { Text('暂无匹配的活动').padding(24) }
+          ListItem() {
+            if (this.admin) { Text('暂无匹配的活动').padding(24) }
+            else {
+              Column({ space: 8 }) {
+                Text(this.query.trim() === '' ? '暂无活动' : '没有匹配的活动').fontSize(16).fontWeight(FontWeight.Medium)
+                if (this.query.trim() !== '') { Button('清空搜索').fontSize(13).backgroundColor('#EAF3FB').fontColor('#315F93').onClick(() => { this.query = ''; }) }
+              }.width('100%').padding(24).backgroundColor(Color.White).borderRadius(16)
+            }
+          }
         }
       }.width('100%').layoutWeight(1)
     }.width('100%').height('100%').padding(16).backgroundColor('#F0F5F8')

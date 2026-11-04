@@ -1,0 +1,14 @@
+{
+  "baseCommit": "ca337b8ea6fc72ce9efa1eea0302e3e72fa9b732",
+  "baselineHapSha256": "3f44b14701aca32b0da9a22e3c3bfe8e759319797f7225d8ae6e599465e64f5c",
+  "hap": {
+    "path": "app/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    "sha256": "69fb076252578676d18092b262660d48541b3641b105b420be52136565c77687",
+    "bytes": 4303810
+  },
+  "sourceSha256": {
+    "app/entry/src/main/ets/features/activity/ActivityBoardPage.ets": "7a97854210f43e95916af7dc639bed67099cac41e12e18afbb4c2c5c50d632de",
+    "app/entry/src/main/ets/features/activity/ActivityWorkspacePage.ets": "0f865a8d52fbf6f485cb8473eed109518503f9a1c546238d5e5c88f0f8629892",
+    "backend/tests/unit/native-activities-app.test.ts": "77ccd4755aca239f098ac7949beda8f576a74d4394a04ffd08a96b15d0b259d5"
+  }
+}
