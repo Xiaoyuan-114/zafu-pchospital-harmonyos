@@ -25,6 +25,14 @@ function forumTimeText(value: string): string {
 struct ForumPostImage {
   @Prop @Watch('onUrlChanged') url: string = '';
   @Prop cornerRadius: number = 12;
+  @Prop imageFit: ImageFit = ImageFit.Cover;
+  @Prop imageBackground: string = '#E9EEF2';
+  @Prop viewer: boolean = false;
+  @Prop viewerZoomed: boolean = false;
+  onOpen: () => void = () => {};
+  onZoom: () => void = () => {};
+  onPan: (x: number, y: number) => void = () => {};
+  onPanEnd: () => void = () => {};
   @State pixelMap: image.PixelMap | undefined = undefined;
   @State failed: boolean = false;
   private generation: number = 0;
@@ -79,7 +87,19 @@ struct ForumPostImage {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.pixelMap !== undefined) {
-        Image(this.pixelMap).width('100%').height('100%').objectFit(ImageFit.Cover)
+        if (this.viewer && this.viewerZoomed) {
+          Image(this.pixelMap).width('100%').height('100%').objectFit(this.imageFit)
+            .gesture(GestureGroup(GestureMode.Parallel,
+              TapGesture({ count: 2 }).onAction(this.onZoom),
+              PanGesture().onActionUpdate((event: GestureEvent) => { this.onPan(event.offsetX, event.offsetY); })
+                .onActionEnd(() => { this.onPanEnd(); })
+            ))
+        } else if (this.viewer) {
+          Image(this.pixelMap).width('100%').height('100%').objectFit(this.imageFit)
+            .gesture(TapGesture({ count: 2 }).onAction(this.onZoom))
+        } else {
+          Image(this.pixelMap).width('100%').height('100%').objectFit(this.imageFit).onClick(this.onOpen)
+        }
       } else if (this.failed) {
         Column({ space: 4 }) {
           Image($r('app.media.detail_info')).width(20).height(20)
@@ -93,7 +113,7 @@ struct ForumPostImage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#E9EEF2')
+    .backgroundColor(this.imageBackground)
     .borderRadius(this.cornerRadius)
     .clip(true)
   }
@@ -340,8 +360,8 @@ struct ForumFeed {
     else this.load();
   }
 
-  private openPost(item: ForumPostView): void {
-    const param: ForumPostParam = { postId: item.id };
+  private openPost(item: ForumPostView, focusComments: boolean = false): void {
+    const param: ForumPostParam = { postId: item.id, focusComments: focusComments };
     this.onOpen(ROUTE_FORUM_POST, param);
   }
 
@@ -420,12 +440,14 @@ struct ForumFeed {
           .textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
       }
       if (item.images.length === 1) {
-        ForumPostImage({ url: item.images[0].url, cornerRadius: 8 }).width('100%').height(180)
+        ForumPostImage({ url: item.images[0].url, cornerRadius: 8,
+          onOpen: (): void => { this.openPost(item); } }).width('100%').height(180)
       } else if (item.images.length > 1) {
         Row({ space: 6 }) {
           ForEach(item.images.slice(0, 3), (forumImage: ForumImageView, index: number) => {
             Stack({ alignContent: Alignment.BottomEnd }) {
-              ForumPostImage({ url: forumImage.url, cornerRadius: 8 })
+              ForumPostImage({ url: forumImage.url, cornerRadius: 8,
+                onOpen: (): void => { this.openPost(item); } })
               if (index === 2 && item.images.length > 3) {
                 Text(`共 ${item.images.length} 张`).fontSize(11).fontColor(Color.White)
                   .padding({ left: 6, right: 6, top: 3, bottom: 3 }).backgroundColor('#99000000').borderRadius(4).margin(5)
@@ -436,8 +458,10 @@ struct ForumFeed {
       }
       Row() {
         Text(`# ${forumCategoryLabel(item.category)}`).fontSize(12).fontColor(FORUM_MUTED).layoutWeight(1)
-        Image($r('app.media.forum_comment')).width(16).height(16).margin({ right: 5 })
-        Text(item.commentCount === 0 ? '参与讨论' : `${item.commentCount} 条评论`).fontSize(12).fontColor(FORUM_MUTED)
+        Row() {
+          Image($r('app.media.forum_comment')).width(16).height(16).margin({ right: 5 })
+          Text(item.commentCount === 0 ? '参与讨论' : `${item.commentCount} 条评论`).fontSize(12).fontColor(FORUM_MUTED)
+        }.height(40).onClick(() => { this.openPost(item, true); })
       }.width('100%').margin({ top: 2 })
     }.width('100%').padding(16).backgroundColor(FORUM_SURFACE).alignItems(HorizontalAlign.Start)
       .accessibilityText(`${item.author.displayName}，${item.title}，${item.commentCount} 条评论`)

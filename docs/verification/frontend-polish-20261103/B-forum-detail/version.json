@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-04",
+  "branch": "codex/forum-detail-polish",
+  "baseCommit": "c92a22cc97f164bda248418bbe12e6a784507fa0",
+  "sourceHashes": {
+    "app/entry/src/main/ets/features/forum/ForumContract.ets": "901d4a7fecb1d9249195fd449a3ea139a02156eaa60ac2b97d95526f251fe478",
+    "app/entry/src/main/ets/features/forum/ForumFeed.ets": "57768a9730bb85efc9e1c1d4cbc467a5884c138de0116a75e8bb5de0ad237c89",
+    "app/entry/src/main/ets/features/forum/ForumPostDetailPage.ets": "0b02644470a840b7f996ac0306e9295e855d7bd55a89337131b009fe362734ed",
+    "app/entry/src/main/ets/features/home/HomePage.ets": "eff8761616a709b130814ce004583315ac41e322fc760cf3d9e10cfe73aa2698",
+    "backend/tests/unit/forum-app.test.ts": "8a15a8d591fd996de0d24428793cadbf0877d74f8f07ff7bf4344ce1b30ecae7"
+  },
+  "hapSha256": "33b4b98576295123ad7c8c89ee0da8e3ce47db7288fc121131d7adf7f6fa0e70",
+  "hapBytes": 4218775,
+  "deviceProfile": "Pura 90",
+  "os": "OpenHarmony-6.1.1.125",
+  "apiVersion": 24,
+  "resolution": [
+    1320,
+    2856
+  ]
+}
