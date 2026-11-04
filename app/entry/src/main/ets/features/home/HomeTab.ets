@@ -47,6 +47,8 @@ function isPendingStatus(status: string): boolean {
 @Component
 export struct HomeTab {
   onActivities: () => void = () => {};
+  onShopping: () => void = () => {};
+  onForum: () => void = () => {};
   @Prop displayName: string = '';
   @Prop roleText: string = '';
   @Prop @Watch('authChanged') authenticated: boolean = false;
@@ -129,6 +131,14 @@ export struct HomeTab {
 
   private showActivities(): void {
     this.onActivities();
+  }
+
+  private showShopping(): void {
+    this.onShopping();
+  }
+
+  private showForum(): void {
+    this.onForum();
   }
 
   /** 审核入口按服务器权限展示，实际业务权限仍由服务端检查。 */
@@ -252,8 +262,8 @@ export struct HomeTab {
           Row({ space: 8 }) {
             this.channel('★ 推荐', true, (): void => {})
             this.channel('问诊', false, (): void => { this.openKnowledge(); })
-            this.channel('维修', false, (): void => { this.openRepairs(); })
-            this.channel('活动', false, (): void => { this.showActivities(); })
+            this.channel('选购', false, (): void => { this.showShopping(); })
+            this.channel('论坛', false, (): void => { this.showForum(); })
           }
           .width('100%')
           .margin({ top: 16, bottom: 36 })
@@ -266,8 +276,8 @@ export struct HomeTab {
               onSelect: (): void => { this.openRepairs(); } })
             HomeQuickCard({ title: '进度查询', icon: $r('app.media.home_progress'),
               onSelect: (): void => { this.openRepairs(); } })
-            HomeQuickCard({ title: '近期活动', icon: $r('app.media.home_activity'),
-              onSelect: (): void => { this.showActivities(); } })
+            HomeQuickCard({ title: '校园论坛', icon: $r('app.media.home_activity'),
+              onSelect: (): void => { this.showForum(); } })
           }
           .width('100%')
           .justifyContent(FlexAlign.SpaceBetween)

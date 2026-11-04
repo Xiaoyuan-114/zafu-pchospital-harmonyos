@@ -13,6 +13,7 @@ import { ROUTE_PERSONAL_PROFILE } from '../../core/ui/Routes';
 import { PersonalProfileService } from './PersonalProfileService';
 import { ROUTE_FAVORITES, ROUTE_MESSAGES } from '../../core/ui/Routes';
 import { ROUTE_SHOPPING_MY_PRODUCTS, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS } from '../../core/ui/Routes';
+import { ROUTE_MY_FORUM_POSTS } from '../../core/ui/Routes';
 
 /** 统计区块的加载状态（与 StatePanel 配套）。 */
 const STATS_LOADING: number = 0;
@@ -124,6 +125,7 @@ export struct ProfilePage {
       { title: '我的购物订单', icon: $r('app.media.ref_document'), note: '', route: ROUTE_SHOPPING_ORDERS },
       { title: '我发布的商品', icon: $r('app.media.ref_grid'), note: '', route: ROUTE_SHOPPING_MY_PRODUCTS },
       { title: '卖家订单', icon: $r('app.media.ref_message'), note: '', route: ROUTE_SHOPPING_SELLER_ORDERS },
+      { title: '我的帖子', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MY_FORUM_POSTS },
       { title: '收藏', icon: $r('app.media.ref_star'), note: '', route: ROUTE_FAVORITES },
       { title: '消息', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MESSAGES },
       { title: '修改密码', icon: $r('app.media.ref_flag'), note: '', route: ROUTE_PASSWORD_CHANGE },
@@ -139,6 +141,7 @@ export struct ProfilePage {
       { title: '我的购物订单', icon: $r('app.media.ref_document'), note: '', route: ROUTE_SHOPPING_ORDERS },
       { title: '我发布的商品', icon: $r('app.media.ref_grid'), note: '', route: ROUTE_SHOPPING_MY_PRODUCTS },
       { title: '卖家订单', icon: $r('app.media.ref_message'), note: '', route: ROUTE_SHOPPING_SELLER_ORDERS },
+      { title: '我的帖子', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MY_FORUM_POSTS },
       { title: '收藏', icon: $r('app.media.ref_star'), note: '', route: ROUTE_FAVORITES },
       { title: '个人资料', icon: $r('app.media.ref_profile'), note: '', route: ROUTE_PERSONAL_PROFILE },
       { title: '进入工作台', icon: $r('app.media.ref_document'), note: '', route: ROUTE_STAFF_ORDERS },
@@ -153,6 +156,18 @@ export struct ProfilePage {
     if (this.permissions.includes('activity:staff')) entries.push({ title: '成员活动', icon: $r('app.media.ref_activity'), note: '', route: ROUTE_STAFF_ACTIVITIES });
     if (this.permissions.includes('activity:admin')) entries.push({ title: '管理', icon: $r('app.media.ref_grid'), note: '', route: ROUTE_MANAGEMENT });
     return entries;
+  }
+
+  private entryGroup(title: string): string {
+    if (title === '个人资料' || title === '修改密码' || title === '消息' || title === '进入工作台' || title === '管理') return '账号与工作';
+    if (title === '我的购物订单' || title === '我发布的商品' || title === '卖家订单') return '校园交易';
+    if (title === '我的帖子' || title === '收藏' || title === '我的报名') return '交流';
+    return '维修服务';
+  }
+
+  private entriesForGroup(group: string): ProfileEntry[] {
+    const entries: ProfileEntry[] = this.home === HOME_STAFF ? this.staffEntries() : this.customerEntries();
+    return entries.filter((entry: ProfileEntry) => this.entryGroup(entry.title) === group);
   }
 
   private openEntry(entry: ProfileEntry): void {
@@ -247,6 +262,22 @@ export struct ProfilePage {
       .onClick(() => { this.loadStats(); })
   }
 
+  @Builder
+  entrySection(title: string) {
+    Column({ space: 12 }) {
+      Text(title).fontSize(17).fontWeight(FontWeight.Bold).width('100%')
+      Flex({ wrap: FlexWrap.Wrap }) {
+        ForEach(this.entriesForGroup(title), (entry: ProfileEntry) => {
+          ReferenceShortcut({
+            title: entry.title, icon: entry.icon, note: entry.note,
+            onSelect: (): void => { this.openEntry(entry); }
+          })
+        }, (entry: ProfileEntry) => entry.title)
+      }.width('100%')
+    }.width('100%').padding({ left: 12, right: 12, top: 18, bottom: 16 })
+      .backgroundColor(Color.White).borderRadius(20)
+  }
+
   build() {
     Scroll() {
       Column({ space: 14 }) {
@@ -261,18 +292,10 @@ export struct ProfilePage {
         }.width('100%').height(50)
         this.profileCard()
         if (this.home !== HOME_STAFF) { this.statsSection() }
-        Column({ space: 20 }) {
-          Text('我的信息').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
-          Flex({ wrap: FlexWrap.Wrap }) {
-            ForEach(this.home === HOME_STAFF ? this.staffEntries() : this.customerEntries(), (entry: ProfileEntry) => {
-              ReferenceShortcut({
-                title: entry.title, icon: entry.icon, note: entry.note,
-                onSelect: (): void => { this.openEntry(entry); }
-              })
-            }, (entry: ProfileEntry) => entry.title)
-          }.width('100%')
-        }.width('100%').padding({ left: 12, right: 12, top: 24, bottom: 20 })
-          .backgroundColor(Color.White).borderRadius(20)
+        this.entrySection('维修服务')
+        this.entrySection('校园交易')
+        this.entrySection('交流')
+        this.entrySection('账号与工作')
         Column({ space: 18 }) {
           Text('常用服务').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Row() {

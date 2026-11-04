@@ -198,6 +198,8 @@ export const Permission = [
   // 只有授权工作人员能发布/维护；管理员可下架任意商品（原因必填）。
   "shopping.consumable:manage",
   "shopping.product:moderate",
+  // 论坛管理仅授予 ADMIN；发帖、评论和删除本人内容不需要额外权限码。
+  "forum:moderate",
 ] as const;
 export type Permission = ValueOf<typeof Permission>;
 

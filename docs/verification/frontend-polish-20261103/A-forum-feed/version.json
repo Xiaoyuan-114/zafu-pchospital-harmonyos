@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-03",
+  "branch": "feat/issue-85-forum-polish-20261028",
+  "baseCommit": "1cdb42539f603dc5f473de6e8e9e5c3bb704e1ea",
+  "sourceHashes": {
+    "app/entry/src/main/ets/features/activity/ActivityPage.ets": "5ed563d7ab474251e6ecbbdd3b98fd2e3f921cd5d7eeda096031a03b0715c35e",
+    "app/entry/src/main/ets/features/forum/ForumFeed.ets": "9188c4ee565322569cda97be040b6365c123737d6d97a8ee5105c353eae26ae8",
+    "app/entry/src/main/ets/features/forum/ForumTheme.ets": "b26a35ab2778cf2a36fc858bdda3632e7f748dc9fc4d824cca5a5bf6d9fa3c1d",
+    "app/entry/src/main/ets/features/home/HomePage.ets": "3dcfe2947408d1cff515a6ed635026f1ea365bbbab0f1255df87504b18c75993",
+    "app/entry/src/main/ets/pages/Index.ets": "5578443defc32e68c44fb70eb23955afde0f8e0d3f46055a5015a95d8f3e9353",
+    "app/entry/src/main/resources/base/media/forum_avatar.svg": "f54c2ac100a846ae6b91fd90b73ccfd3b7887b387cda53915c2f55af7e49d175",
+    "app/entry/src/main/resources/base/media/forum_comment.svg": "a1be26dcc91c2653285090fc8883913add13b74819990badf878cf53f4a2eb42",
+    "app/entry/src/main/resources/base/media/forum_compose.svg": "08d5f9f912a35e6210590ae693657aea297a9a003c34a52aa67dcf6e4e1b7304",
+    "backend/tests/unit/forum-app.test.ts": "f3a78ee62b3f3b780a6b734c553942a489ad4a35098c59dcc90de9b7b0f3fea3"
+  },
+  "hapSha256": "00ad1cd314c7a6038b240f5a4e2c8a0ba19a499ca764b1518e0a5ff616aeae2e",
+  "hapBytes": 4166900,
+  "deviceTarget": "127.0.0.1:5555",
+  "deviceProfile": "Pura 90",
+  "osReportedByDevice": "OpenHarmony-6.1.1.125",
+  "apiVersion": 24,
+  "resolution": [
+    1320,
+    2856
+  ],
+  "theme": "light",
+  "role": "guest",
+  "tests": {
+    "pass": 61,
+    "fail": 0,
+    "skipped": 0
+  }
+}

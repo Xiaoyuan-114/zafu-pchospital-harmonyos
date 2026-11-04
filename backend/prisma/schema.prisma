@@ -44,6 +44,8 @@ model User {
   products           Product[]               @relation("ProductSeller")
   shoppingOrdersBought ShoppingOrder[]       @relation("ShoppingOrderBuyer")
   shoppingOrdersSold ShoppingOrder[]         @relation("ShoppingOrderSeller")
+  forumPosts         ForumPost[]             @relation("ForumPostAuthor")
+  forumComments      ForumComment[]          @relation("ForumCommentAuthor")
 
   @@index([status, deletedAt], map: "users_status_deleted_idx")
   @@map("users")
@@ -890,4 +892,65 @@ model ShoppingOrder {
   @@index([sellerId, createdAt], map: "shopping_orders_seller_created_idx")
   @@index([productId, createdAt], map: "shopping_orders_product_created_idx")
   @@map("shopping_orders")
+}
+
+// ---------------------------------------------------------------------------
+// Issue #85 论坛 M1：公开图文帖子与普通评论，独立于内部维修备案评论/照片。
+// 分类使用固定字符串白名单；软删除保留审计数据，但所有公开读取都过滤删除态。
+// ---------------------------------------------------------------------------
+
+model ForumPost {
+  id               String         @id @db.Char(36)
+  authorId         String         @map("author_id") @db.Char(36)
+  /// GENERAL / EXPERIENCE / QUESTION
+  category         String         @db.VarChar(32)
+  title            String         @db.VarChar(120)
+  body             String         @db.Text
+  createRequestKey String         @map("create_request_key") @db.VarChar(128)
+  createdAt        DateTime       @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
+  author           User           @relation("ForumPostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  comments         ForumComment[]
+  images           ForumPostImage[]
+
+  @@unique([authorId, createRequestKey], map: "forum_posts_author_request_uq")
+  @@index([deletedAt, category, createdAt, id], map: "forum_posts_public_created_idx")
+  @@index([authorId, deletedAt, createdAt, id], map: "forum_posts_author_created_idx")
+  @@map("forum_posts")
+}
+
+model ForumComment {
+  id               String    @id @db.Char(36)
+  postId           String    @map("post_id") @db.Char(36)
+  authorId         String    @map("author_id") @db.Char(36)
+  body             String    @db.Text
+  createRequestKey String    @map("create_request_key") @db.VarChar(128)
+  createdAt        DateTime  @map("created_at") @db.DateTime(3)
+  deletedAt        DateTime? @map("deleted_at") @db.DateTime(3)
+  post             ForumPost @relation(fields: [postId], references: [id], onDelete: Restrict)
+  author           User      @relation("ForumCommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@unique([authorId, createRequestKey], map: "forum_comments_author_request_uq")
+  @@index([postId, deletedAt, createdAt, id], map: "forum_comments_post_created_idx")
+  @@index([authorId, deletedAt, createdAt], map: "forum_comments_author_created_idx")
+  @@map("forum_comments")
+}
+
+model ForumPostImage {
+  id           String    @id @db.Char(36)
+  postId       String    @map("post_id") @db.Char(36)
+  storageKey   String    @unique(map: "forum_post_images_storage_key_uq") @map("storage_key") @db.VarChar(255)
+  mimeType     String    @map("mime_type") @db.VarChar(64)
+  sizeBytes    Int       @map("size_bytes") @db.Int
+  sha256Digest Bytes     @map("sha256_digest") @db.Binary(32)
+  uploadKey    String    @map("upload_key") @db.VarChar(128)
+  sortOrder    Int       @default(0) @map("sort_order") @db.Int
+  createdAt    DateTime  @map("created_at") @db.DateTime(3)
+  deletedAt    DateTime? @map("deleted_at") @db.DateTime(3)
+  post         ForumPost @relation(fields: [postId], references: [id], onDelete: Restrict)
+
+  @@unique([postId, uploadKey], map: "forum_post_images_post_upload_uq")
+  @@index([postId, deletedAt, sortOrder, createdAt], map: "forum_post_images_post_sort_idx")
+  @@map("forum_post_images")
 }
