@@ -1,0 +1,16 @@
+{
+  "baseCommit": "b6c23f817c499531551cc94a832a80ca8829bb98",
+  "baselineHapSha256": "33b4b98576295123ad7c8c89ee0da8e3ce47db7288fc121131d7adf7f6fa0e70",
+  "hap": {
+    "path": "app/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    "sha256": "610aef38f9d39eb89fbf05964080ef817478acc3713d509791e8e490db7e3e58",
+    "bytes": 4268944
+  },
+  "sourceSha256": {
+    "app/entry/src/main/ets/features/forum/ForumComposePage.ets": "3c5827da1c212a0acf2900f3d1a14bd72e98897d9502cf8e4dce27267b5073f6",
+    "app/entry/src/main/ets/features/forum/MyForumPostsPage.ets": "a74d4db5ac40a42e8852cdb115a381f6b414d6f9dc304b5480b106e43f8b28bc",
+    "app/entry/src/main/ets/features/home/HomePage.ets": "73a235731f4c7e96703f796a863d9a2f9fb9e452a9225da749f58a4e0f365334",
+    "app/entry/src/main/ets/features/repair/PhotoPicker.ets": "81bf9c16103435b663e03af29a2eee342794ce9cd50927812b828e83dc92d805",
+    "backend/tests/unit/forum-app.test.ts": "d0866b8a36e01bca853ae0431fa8bdb184cada4bf651d4f06e8857eb922283d9"
+  }
+}

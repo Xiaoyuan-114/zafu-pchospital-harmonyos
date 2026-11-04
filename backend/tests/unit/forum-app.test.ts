@@ -779,10 +779,17 @@ interface ComposeApi {
   title: string;
   body: string;
   pending: Array<{ fileName: string; mimeType: string; data: ArrayBuffer; uploadKey: string }>;
+  uploadedCount: number;
   createRequestKey: string;
   submitting: boolean;
   errorText: string;
   savedPostId: string;
+  previewIndex: number;
+  leaveConfirmOpen: boolean;
+  onBack: () => void;
+  onSaved: (id: string) => void;
+  requestBack(): boolean;
+  leaveEditor(): void;
   submit(): Promise<void>;
   pickImages(): Promise<void>;
 }
@@ -794,6 +801,7 @@ interface MineApi {
   errorText: string;
   load(): Promise<void>;
   loadMore(): Promise<void>;
+  retry(): void;
 }
 
 function composeHarness() {
@@ -813,20 +821,28 @@ function composeHarness() {
   }).outputText;
   const createCalls: unknown[] = [];
   const uploadCalls: unknown[][] = [];
+  const pickerLimits: number[] = [];
+  let createFailure: { code: string; message: string; status?: number } | null = null;
+  let uploadFailure: { code: string; message: string; status?: number } | null = null;
+  let uploadFailAt = 0;
+  let pickResult = { images: [] as Array<{ fileName: string; mimeType: string; data: ArrayBuffer }>, selectedCount: 0 };
   const compose = runInNewContext(code, {
     ForumService: {
       newCreateRequestKey: () => "create-once",
       newUploadKey: () => "upload-once",
       createPost: async (draft: unknown) => {
         createCalls.push(draft);
+        if (createFailure !== null) throw createFailure;
         return { id: "created-post" };
       },
       uploadImages: async (id: string, images: unknown[], keys: string[]) => {
         uploadCalls.push([id, images, keys]);
+        if (uploadFailAt === uploadCalls.length) throw { code: "NETWORK_ERROR", message: "网络不可用" };
+        if (uploadFailure !== null) throw uploadFailure;
         return [];
       },
     },
-    PhotoPicker: { pick: async () => [] },
+    PhotoPicker: { pickDetailed: async (limit: number) => { pickerLimits.push(limit); return pickResult; } },
     SessionService: { sessionStamp: () => "1|user-a" },
     ApiRequestError: class extends Error {},
     isSessionExpiredCode: () => false,
@@ -837,8 +853,106 @@ function composeHarness() {
   compose.category = "GENERAL";
   compose.title = "真实标题";
   compose.body = "真实正文";
-  return { compose, createCalls, uploadCalls };
+  return { compose, createCalls, uploadCalls, pickerLimits,
+    setCreateFailure: (value: typeof createFailure) => { createFailure = value; },
+    setUploadFailure: (value: typeof uploadFailure) => { uploadFailure = value; },
+    failUploadAt: (value: number) => { uploadFailAt = value; },
+    setPickResult: (value: typeof pickResult) => { pickResult = value; } };
 }
+
+test("取消选图不报错，选择了不可读取的图片时提示原因", async () => {
+  const { compose, setPickResult } = composeHarness();
+  await compose.pickImages();
+  assert.equal(compose.errorText, "");
+  setPickResult({ images: [], selectedCount: 1 });
+  await compose.pickImages();
+  assert.equal(compose.errorText, "未读取到可用图片，请检查文件格式并重新选择");
+});
+
+test("部分图片已上传后，重新选择不能超过每帖九张", async () => {
+  const { compose, pickerLimits, setPickResult } = composeHarness();
+  compose.savedId = "created-post";
+  compose.uploadedCount = 8;
+  setPickResult({ images: [{ fileName: "one.png", mimeType: "image/png", data: new ArrayBuffer(1) }], selectedCount: 1 });
+  await compose.pickImages();
+  assert.deepEqual(pickerLimits, [1]);
+  assert.equal(compose.pending.length, 1);
+  await compose.pickImages();
+  assert.equal(compose.errorText, "每篇帖子最多 9 张图片");
+  assert.deepEqual(pickerLimits, [1]);
+});
+
+test("离开编辑器保留草稿、关闭预览并在已建帖时返回帖子", () => {
+  const { compose } = composeHarness();
+  let closed = 0;
+  let opened = "";
+  compose.onBack = () => { closed += 1; };
+  compose.onSaved = (id) => { opened = id; };
+  compose.previewIndex = 0;
+  assert.equal(compose.requestBack(), true);
+  assert.equal(compose.previewIndex, -1);
+  assert.equal(compose.requestBack(), true);
+  assert.equal(compose.leaveConfirmOpen, true);
+  assert.equal(compose.title, "真实标题");
+  compose.savedId = "created-post";
+  compose.leaveEditor();
+  assert.equal(opened, "created-post");
+  assert.equal(closed, 0);
+});
+
+test("建帖结果未知时保留请求键，同一内容重试不生成新请求", async () => {
+  const { compose, createCalls, setCreateFailure } = composeHarness();
+  setCreateFailure({ code: "NETWORK_ERROR", message: "网络不可用" });
+  await compose.submit();
+  assert.equal(compose.createRequestKey, "create-once");
+  assert.equal(compose.title, "真实标题");
+  setCreateFailure(null);
+  await compose.submit();
+  assert.equal(createCalls.length, 2);
+  assert.deepEqual(createCalls[0], createCalls[1]);
+});
+
+test("服务端失败保留建帖请求键，确定拒绝后允许重新编辑", async () => {
+  const { compose, setCreateFailure } = composeHarness();
+  setCreateFailure({ code: "INTERNAL_ERROR", message: "服务暂不可用", status: 503 });
+  await compose.submit();
+  assert.equal(compose.createRequestKey, "create-once");
+  setCreateFailure({ code: "VALIDATION_FAILED", message: "字段有误", status: 422 });
+  await compose.submit();
+  assert.equal(compose.createRequestKey, "");
+  assert.equal(compose.title, "真实标题");
+});
+
+test("上传失败保留剩余图片，续传只重用原帖子和上传键", async () => {
+  const { compose, createCalls, uploadCalls, setUploadFailure } = composeHarness();
+  const pending = { fileName: "one.png", mimeType: "image/png", data: new ArrayBuffer(1), uploadKey: "upload-once" };
+  compose.pending = [pending];
+  setUploadFailure({ code: "NETWORK_ERROR", message: "网络不可用" });
+  await compose.submit();
+  assert.equal(compose.savedId, "created-post");
+  assert.equal(compose.pending.length, 1);
+  setUploadFailure(null);
+  await compose.submit();
+  assert.equal(createCalls.length, 1);
+  assert.equal(uploadCalls.length, 2);
+  assert.equal(uploadCalls[1][0], "created-post");
+  assert.deepEqual(Array.from(uploadCalls[1][2] as string[]), ["upload-once"]);
+  assert.equal(compose.pending.length, 0);
+});
+
+test("逐图上传中断后只续传剩余图片并累计已上传数量", async () => {
+  const { compose, createCalls, uploadCalls, failUploadAt } = composeHarness();
+  const image = (key: string) => ({ fileName: `${key}.png`, mimeType: "image/png", data: new ArrayBuffer(1), uploadKey: key });
+  compose.pending = [image("first"), image("second")];
+  failUploadAt(2);
+  await compose.submit();
+  assert.equal(compose.uploadedCount, 1);
+  assert.deepEqual(Array.from(compose.pending, (item) => item.uploadKey), ["second"]);
+  await compose.submit();
+  assert.equal(createCalls.length, 1);
+  assert.deepEqual(Array.from(uploadCalls[2][2] as string[]), ["second"]);
+  assert.equal(compose.uploadedCount, 2);
+});
 
 test("已建帖上传重试不重复创建，上传键稳定且成功后清空", async () => {
   const { compose, createCalls, uploadCalls } = composeHarness();
@@ -887,10 +1001,26 @@ function mineHarness() {
   }).outputText;
   const calls: number[] = [];
   const pages: FeedPage[] = [];
+  const restoredOffsets: number[] = [];
+  let scrollOffset = 0;
+  let nextFailure: boolean = false;
   const mine = runInNewContext(code, {
+    Scroller: class {
+      currentOffset() {
+        if (mine.posts.length === 0) throw new Error("scroll node not yet mounted");
+        return { xOffset: 0, yOffset: scrollOffset };
+      }
+      scrollTo(value: { yOffset: number }) { restoredOffsets.push(value.yOffset); }
+    },
+    setTimeout,
+    clearTimeout,
     ForumService: {
       listMine: async (page: number) => {
         calls.push(page);
+        if (nextFailure) {
+          nextFailure = false;
+          throw { code: 'NETWORK_ERROR', message: '连接失败' };
+        }
         return pages.shift() ?? { items: [], pagination: { page, pageSize: 20, total: 0, totalPages: 0 } };
       },
     },
@@ -898,8 +1028,46 @@ function mineHarness() {
     isSessionExpiredCode: () => false,
     ROUTE_FORUM_POST: "forum-post",
   }) as MineApi;
-  return { mine, calls, pages };
+  return { mine, calls, pages, restoredOffsets,
+    setOffset: (value: number) => { scrollOffset = value; },
+    failNext: () => { nextFailure = true; } };
 }
+
+test("我的帖子刷新已加载的多页并恢复滚动位置", async () => {
+  const { mine, calls, pages, restoredOffsets, setOffset } = mineHarness();
+  const first = { items: [{ id: "mine-1", title: "本人帖子" }], pagination: { page: 1, pageSize: 20, total: 2, totalPages: 2 } };
+  const second = { items: [{ id: "mine-2", title: "第二页" }], pagination: { page: 2, pageSize: 20, total: 2, totalPages: 2 } };
+  pages.push(first, second);
+  await mine.load();
+  await mine.loadMore();
+  setOffset(860);
+  pages.push(first, second);
+  await mine.load();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(calls, [1, 2, 1, 2]);
+  assert.deepEqual(Array.from(mine.posts, (post) => post.id), ["mine-1", "mine-2"]);
+  assert.equal(restoredOffsets.at(-1), 860);
+});
+
+test("我的帖子刷新失败重试第一页，分页失败重试原下一页", async () => {
+  const { mine, calls, pages, failNext } = mineHarness();
+  const first = { items: [{ id: "mine-1", title: "本人帖子" }], pagination: { page: 1, pageSize: 20, total: 2, totalPages: 2 } };
+  pages.push(first);
+  await mine.load();
+  failNext();
+  await mine.load();
+  assert.equal(mine.posts.length, 1);
+  pages.push(first);
+  mine.retry();
+  await settle();
+  failNext();
+  await mine.loadMore();
+  pages.push({ items: [{ id: "mine-2", title: "第二页" }], pagination: { page: 2, pageSize: 20, total: 2, totalPages: 2 } });
+  mine.retry();
+  await settle();
+  assert.deepEqual(calls, [1, 1, 1, 2, 2]);
+  assert.deepEqual(Array.from(mine.posts, (post) => post.id), ["mine-1", "mine-2"]);
+});
 
 test("我的帖子只按服务端本人分页读取并保留分页失败内容", async () => {
   const { mine, calls, pages } = mineHarness();
@@ -910,7 +1078,7 @@ test("我的帖子只按服务端本人分页读取并保留分页失败内容",
   await mine.load();
   await mine.loadMore();
   assert.deepEqual(calls, [1, 2]);
-  assert.deepEqual(mine.posts.map((post) => post.id), ["mine-1", "mine-2"]);
+  assert.deepEqual(Array.from(mine.posts, (post) => post.id), ["mine-1", "mine-2"]);
 });
 
 test("发帖、评论和删除回调同时刷新主论坛列表与我的帖子", () => {

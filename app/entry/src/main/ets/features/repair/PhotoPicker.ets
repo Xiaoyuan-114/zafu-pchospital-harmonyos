@@ -8,6 +8,11 @@ export interface PickedImage {
   data: ArrayBuffer;
 }
 
+export interface PickImagesResult {
+  images: PickedImage[];
+  selectedCount: number;
+}
+
 /** 服务端只接受真实 JPEG / PNG / WebP（按文件头复核），客户端按扩展名先筛一道。 */
 const JPEG_EXTENSIONS: string[] = ['.jpg', '.jpeg'];
 const PNG_EXTENSIONS: string[] = ['.png'];
@@ -22,6 +27,12 @@ const WEBP_EXTENSIONS: string[] = ['.webp'];
 export class PhotoPicker {
   /** 打开系统相册选图；用户取消返回空数组。 */
   static async pick(maxCount: number): Promise<PickedImage[]> {
+    const result: PickImagesResult = await PhotoPicker.pickDetailed(maxCount);
+    return result.images;
+  }
+
+  /** 区分用户没有选择文件与已选文件无法读取，供需要提示的编辑器使用。 */
+  static async pickDetailed(maxCount: number): Promise<PickImagesResult> {
     const picker = new photoAccessHelper.PhotoViewPicker();
     const options = new photoAccessHelper.PhotoSelectOptions();
     options.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
@@ -32,7 +43,7 @@ export class PhotoPicker {
       uris = result.photoUris;
     } catch (error) {
       // 用户取消不算错误：返回空数组，由界面保持原状。
-      return [];
+      return { images: [], selectedCount: 0 };
     }
     const picked: PickedImage[] = [];
     for (const uri of uris) {
@@ -41,7 +52,7 @@ export class PhotoPicker {
         picked.push(image);
       }
     }
-    return picked;
+    return { images: picked, selectedCount: uris.length };
   }
 
   private static readImage(uri: string): PickedImage | null {
