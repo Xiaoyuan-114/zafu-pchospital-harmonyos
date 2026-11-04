@@ -5,7 +5,7 @@ import { ReferenceBanner, ReferenceSearch, REFERENCE_BACKGROUND } from '../../co
 import { ROUTE_ACTIVITY_DETAIL } from '../../core/ui/Routes';
 import { ForumFeed } from '../forum/ForumFeed';
 import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK, FORUM_MUTED, FORUM_SURFACE } from '../forum/ForumTheme';
-import { ActivityParam } from './ActivityContract';
+import { ActivityParam, activityStatusLabel } from './ActivityContract';
 
 interface RepairActivity {
   id: string;
@@ -29,6 +29,7 @@ export struct ActivityPage {
   @State query: string = '';
   @Link forumSearching: boolean;
   @Prop forumRefreshVersion: number = 0;
+  @Prop @Watch('reloadActivities') activityRefreshVersion: number = 0;
   @State activities: RepairActivity[] = [];
   @State loading: boolean = false;
   @State errorText: string = '';
@@ -36,6 +37,7 @@ export struct ActivityPage {
 
   aboutToAppear(): void { this.load(); }
   aboutToDisappear(): void { this.generation += 1; }
+  private reloadActivities(): void { this.load(); }
 
   private async load(): Promise<void> {
     const generation = ++this.generation;
@@ -54,11 +56,7 @@ export struct ActivityPage {
   }
 
   private statusLabel(status: string): string {
-    if (status === 'OPEN') return '报名中';
-    if (status === 'FULL') return '已报满';
-    if (status === 'CLOSED') return '报名截止';
-    if (status === 'ENDED') return '已结束';
-    return '未开始';
+    return activityStatusLabel(status);
   }
 
   private dateText(value: string): string {
@@ -73,24 +71,20 @@ export struct ActivityPage {
 
   @Builder
   activityCard(item: RepairActivity) {
-    Column({ space: 14 }) {
-      Row({ space: 10 }) {
-        Image($r('app.media.ref_activity')).width(36).height(36)
-        Column({ space: 4 }) {
-          Text('电脑医院 · 维修活动').fontSize(15).fontWeight(FontWeight.Bold)
-          Text(this.dateText(item.activityAt)).fontSize(11).fontColor('#777E84')
-        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+    Column({ space: 12 }) {
+      Row() {
+        Text('校园维修活动').fontSize(12).fontColor('#697681').layoutWeight(1)
         Text(this.statusLabel(item.status)).fontSize(12).fontColor('#137AE7')
           .padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor('#F3F7FC').borderRadius(18)
       }.width('100%')
-      Text(item.title).fontSize(17).fontWeight(FontWeight.Medium).width('100%')
-      Image($r('app.media.ref_activity_hero')).width('100%').height(160).objectFit(ImageFit.Contain)
-        .backgroundColor('#F1EBFF').borderRadius(12).accessibilityText('项目主题插画，非活动现场照片')
+      Text(item.title).fontSize(18).fontWeight(FontWeight.Bold).fontColor('#1B2732').lineHeight(27).width('100%')
+      Text(`活动时间  ${this.dateText(item.activityAt)}`).fontSize(13).fontColor('#697681').width('100%')
+      Divider().color('#EEF1F3')
       Row() {
-        Text(`已报名 ${item.registeredCount} · 剩余名额 ${item.remaining}`).fontSize(12).fontColor('#747A7F').layoutWeight(1)
-        Text('活动详情 ›').fontSize(12).fontColor('#2474D4')
+        Text(`已报名 ${item.registeredCount} · 剩余 ${item.remaining} 名`).fontSize(12).fontColor('#697681').layoutWeight(1)
+        Text('查看详情  ›').fontSize(13).fontColor('#2474D4')
       }.width('100%')
-    }.width('100%').padding(14).backgroundColor(Color.White).borderRadius(20)
+    }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(16)
       .alignItems(HorizontalAlign.Start)
       .onClick(() => {
         const param: ActivityParam = { activityId: item.id };
@@ -101,12 +95,17 @@ export struct ActivityPage {
   @Builder
   activityContent() {
     Scroll() {
-      Column({ space: 16 }) {
+      Column({ space: 14 }) {
           ReferenceSearch({ text: $query, placeholder: '搜索社团维修活动' })
           ReferenceBanner({
             title: '电脑医院  校园同行', subtitle: '真实维修活动 · 报名与现场服务', image: $r('app.media.ref_activity_hero'),
-            violet: true
+            violet: true, bannerHeight: 150
           })
+          Row() {
+            Text('维修活动').fontSize(19).fontWeight(FontWeight.Bold).fontColor('#1B2732').layoutWeight(1)
+            Button('刷新').fontSize(13).height(36).fontColor('#315F93').backgroundColor('#EAF1F7')
+              .enabled(!this.loading).onClick(() => { this.load(); })
+          }.width('100%')
           if (this.loading) {
             LoadingPanel({ text: '正在加载活动…' })
           } else if (this.errorText !== '') {
@@ -115,11 +114,14 @@ export struct ActivityPage {
             Column({ space: 10 }) {
               Image($r('app.media.ref_activity')).width(44).height(44)
               Text(this.query.trim() === '' ? '暂未发布维修活动' : '没有匹配的活动').fontSize(16)
-              Button('刷新活动').fontSize(13).backgroundColor('#F1F6FD').fontColor('#2677DB').onClick(() => { this.load(); })
+              if (this.query.trim() !== '') {
+                Button('清空搜索').fontSize(13).backgroundColor('#F1F6FD').fontColor('#2677DB').onClick(() => { this.query = ''; })
+              } else {
+                Button('刷新活动').fontSize(13).backgroundColor('#F1F6FD').fontColor('#2677DB').onClick(() => { this.load(); })
+              }
             }.width('100%').padding(24).backgroundColor(Color.White).borderRadius(20)
           } else {
             ForEach(this.visibleActivities(), (item: RepairActivity) => { this.activityCard(item); }, (item: RepairActivity) => item.id)
-            Button('刷新活动').fontSize(13).onClick(() => { this.load(); })
           }
 
       }.width('100%').padding({ left: 16, right: 16, bottom: 104 }).alignItems(HorizontalAlign.Start)

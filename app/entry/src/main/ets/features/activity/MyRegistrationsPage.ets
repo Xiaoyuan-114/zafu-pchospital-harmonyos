@@ -44,26 +44,42 @@ export struct MyRegistrationsPage {
   build() {
     Column({ space: 12 }) {
       Row() {
-        Text(`我的报名 · 共 ${this.total} 条`).fontSize(19).layoutWeight(1)
-        Button('刷新').enabled(!this.loading).onClick(() => { this.load(true); })
+        Text(this.loading && this.items.length === 0 ? '正在读取报名' :
+          (this.errorText !== '' && this.items.length === 0 ? '报名记录' : `共 ${this.total} 条报名`))
+          .fontSize(14).fontColor('#697786').layoutWeight(1)
+        Button('刷新').height(36).fontSize(13).fontColor('#315F93').backgroundColor('#E3EDF7')
+          .enabled(!this.loading).onClick(() => { this.load(true); })
       }.width('100%')
       if (this.loading) { LoadingPanel({ text: '正在读取报名…' }) }
       if (this.errorText !== '') { ErrorPanel({ message: this.errorText, onRetry: (): void => { this.load(this.retryReset); } }) }
       List({ space: 12 }) {
         ForEach(this.items, (item: MyRegistration) => {
           ListItem() {
-            Column({ space: 10 }) {
-              Text(item.activity.title).fontSize(19).fontWeight(FontWeight.Bold).width('100%')
-              Text(`${item.name} · ${item.phoneMasked}`).fontSize(14).fontColor('#697786').width('100%')
-              Text(registrationStatusLabel(item.status)).fontColor('#1676E5').width('100%')
-              Text(`活动：${activityTime(item.activity.activityAt)}\n报名：${activityTime(item.createdAt)}\n${activityIssueLabel(item.issueType)} · ${item.deviceModel === null ? '机型未填写' : item.deviceModel}`)
-                .fontSize(14).lineHeight(23).width('100%')
-              Button('查看报名').enabled(!this.loading).onClick(() => { this.open(item); })
-            }.width('100%').padding(18).backgroundColor(Color.White).borderRadius(20)
+            Column({ space: 12 }) {
+              Row() {
+                Text('维修活动').fontSize(12).fontColor('#697786').layoutWeight(1)
+                Text(registrationStatusLabel(item.status)).fontSize(12).fontColor('#236BAE')
+                  .padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor('#EDF5FC').borderRadius(16)
+              }.width('100%')
+              Text(item.activity.title).fontSize(18).fontWeight(FontWeight.Bold).fontColor('#1B2732').lineHeight(27).width('100%')
+              Text(`活动时间  ${activityTime(item.activity.activityAt)}`).fontSize(13).fontColor('#697786').width('100%')
+              Text(`${item.name} · ${item.phoneMasked}`).fontSize(13).fontColor('#697786').width('100%')
+              Divider().color('#EEF1F3')
+              Row() {
+                Text(activityIssueLabel(item.issueType)).fontSize(12).fontColor('#697786').layoutWeight(1)
+                Text('查看报名  ›').fontSize(13).fontColor('#2474D4')
+              }.width('100%')
+            }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(16)
+              .alignItems(HorizontalAlign.Start).onClick(() => { if (!this.loading) this.open(item); })
           }
         }, (item: MyRegistration) => item.id)
         if (!this.loading && this.items.length === 0 && this.errorText === '') {
-          ListItem() { Text('暂无账号报名；旧匿名报名请从活动详情单独查询。').padding(24) }
+          ListItem() {
+            Column({ space: 8 }) {
+              Text('暂无报名记录').fontSize(16).fontWeight(FontWeight.Medium).fontColor('#263442')
+              Text('旧匿名报名请从活动详情单独查询').fontSize(13).fontColor('#788696')
+            }.width('100%').padding(28).backgroundColor(Color.White).borderRadius(16)
+          }
         }
         if (this.hasMore) { ListItem() { Button('加载更多').enabled(!this.loading).onClick(() => { this.load(false); }) } }
       }.layoutWeight(1).width('100%')

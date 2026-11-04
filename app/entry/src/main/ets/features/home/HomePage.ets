@@ -196,6 +196,7 @@ export struct HomePage {
   @State pathStack: NavPathStack = new NavPathStack();
   @State currentTab: number = TAB_INDEX_HOME;
   @State activityRevision: number = 0;
+  @State activityListRevision: number = 0;
   @State forumChannel: string = '活动';
   @State forumRefreshVersion: number = 0;
   @State recordsRevision: number = 0;
@@ -491,6 +492,7 @@ export struct HomePage {
       } else if (name === ROUTE_ACTIVITY_DETAIL || name === ROUTE_ACTIVITY_SIGNUP) {
         ActivityDetailPage({ param: param as ActivityParam, signup: name === ROUTE_ACTIVITY_SIGNUP, refreshVersion: this.activityRevision,
           onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+          onChanged: (): void => { this.activityListRevision += 1; },
           onSessionExpired: (): void => { this.expireSession(); } });
       } else if (name === ROUTE_ACTIVITY_LOOKUP) {
         ActivityLookupPage({ param: param as ActivityParam });
@@ -816,6 +818,7 @@ export struct HomePage {
           TabContent() {
             ActivityPage({
               channel: $forumChannel,
+              activityRefreshVersion: this.activityListRevision,
               forumSearching: $forumSearching,
               forumRefreshVersion: this.forumRefreshVersion,
               onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },

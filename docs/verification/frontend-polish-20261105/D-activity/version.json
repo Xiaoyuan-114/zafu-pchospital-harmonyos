@@ -1,0 +1,16 @@
+{
+  "baseCommit": "ac0098693ec01fc3f35ab7bf1aee3b3aeee2c60d",
+  "baselineHapSha256": "610aef38f9d39eb89fbf05964080ef817478acc3713d509791e8e490db7e3e58",
+  "hap": {
+    "path": "app/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    "sha256": "3f44b14701aca32b0da9a22e3c3bfe8e759319797f7225d8ae6e599465e64f5c",
+    "bytes": 4279134
+  },
+  "sourceSha256": {
+    "app/entry/src/main/ets/features/activity/ActivityPage.ets": "1ee34a84d3961a99e4bd0750c7d2bbf1d1d477bcf15e06aefd948cfab76dc691",
+    "app/entry/src/main/ets/features/activity/ActivityDetailPage.ets": "01a9a6874e61fb101c159fef231d42d56bac8b537626695200a64e37345c3b51",
+    "app/entry/src/main/ets/features/activity/MyRegistrationsPage.ets": "5238022c521254020b474cd655d442eeee9ac0f2fe136cbf02e4b8e4f1ff1391",
+    "app/entry/src/main/ets/features/home/HomePage.ets": "d73136c45fa5aea5bb74f9e03fd631ac44e914a3d6435fff8c5bf320ba6494df",
+    "backend/tests/unit/native-activities-app.test.ts": "681fa3c10921300e16054509ec614690cf7d02c5263f292ca0142465c8219079"
+  }
+}
