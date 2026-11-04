@@ -17,6 +17,7 @@ export struct ActivityDetailPage {
   @Prop @Watch('refresh') refreshVersion: number = 0;
   onOpen: (route: string, param: Object | null) => void = () => {};
   onSessionExpired: () => void = () => {};
+  onChanged: () => void = () => {};
   @State detail: ActivityDetail | null = null;
   @State loading: boolean = false;
   @State busy: boolean = false;
@@ -98,6 +99,7 @@ export struct ActivityDetailPage {
       const result = await ActivityService.signup(activityId, input);
       if (!this.current(ticket, activityId)) return;
       this.submittedId = result.id; this.actionText = '报名成功，请按时到场。可查看本次报名的签到与接待状态。';
+      this.onChanged();
       this.busy = false; await this.load();
     } catch (error) {
       if (!this.current(ticket, activityId)) return;
@@ -131,8 +133,8 @@ export struct ActivityDetailPage {
     if (this.detail !== null) {
       Column({ space: 14 }) {
         Text('电脑医院 · 维修活动').fontSize(14).fontColor('#486E99').letterSpacing(2)
-        Text(this.detail.title).fontSize(30).fontWeight(FontWeight.Bold).fontColor('#172C46')
-          .textAlign(TextAlign.Center).width('100%').lineHeight(40)
+        Text(this.detail.title).fontSize(26).fontWeight(FontWeight.Bold).fontColor('#172C46')
+          .textAlign(TextAlign.Center).width('100%').lineHeight(36)
         Text(activityStatusLabel(this.detail.status)).fontSize(13).fontColor('#28629F')
           .padding({ left: 16, right: 16, top: 6, bottom: 6 }).backgroundColor('#EAF5FF').borderRadius(16)
         Column({ space: 7 }) {
@@ -141,10 +143,10 @@ export struct ActivityDetailPage {
           Text(this.detail.location === null || this.detail.location.trim() === '' ? '地点待公布' : this.detail.location)
             .fontSize(14).fontColor('#506A87').textAlign(TextAlign.Center).width('100%')
         }.width('100%')
-        Image($r('app.media.activity_campaign_laptop')).width('100%').aspectRatio(1.6).objectFit(ImageFit.Contain)
+        Image($r('app.media.activity_campaign_laptop')).width('72%').aspectRatio(1.6).objectFit(ImageFit.Contain)
           .accessibilityText('电脑医院主题插画')
         Text('先报名，再到场参与').fontSize(13).fontColor('#607C9B')
-      }.width('100%').padding({ left: 24, right: 24, top: 30, bottom: 24 })
+      }.width('100%').padding({ left: 24, right: 24, top: 24, bottom: 20 })
         .linearGradient({ angle: 135, colors: [['#C8DDF8', 0], ['#E8F3FF', 1]] })
     }
   }

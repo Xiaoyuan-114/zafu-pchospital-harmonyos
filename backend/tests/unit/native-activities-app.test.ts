@@ -516,6 +516,31 @@ test("#77 successful signup keeps real ID through failed refresh; retry reads on
   assert.equal(page.submittedId, "");
   assert.equal(page.phone, "");
 });
+
+test("报名成功通知活动列表刷新，失败时不触发刷新", async () => {
+  let changes = 0;
+  let succeeds = false;
+  const identity = {};
+  const page = detail77(
+    {
+      detail: async () => event77("OPEN"),
+      signup: async () => {
+        if (!succeeds) throw Error("network");
+        return { id: "new-registration" };
+      },
+    },
+    () => identity,
+  ) as Detail77 & { onChanged: () => void };
+  page.onChanged = () => { changes++; };
+  await page.load();
+  page.consentAccepted = true;
+  await page.submit();
+  assert.equal(changes, 0);
+  succeeds = true;
+  await page.submit();
+  assert.equal(changes, 1);
+  assert.equal(page.submittedId, "new-registration");
+});
 interface Mine77 {
   param: { activityId: string; registrationId: string };
   item: { id: string; activityId: string; issueType: string; canEditIssueType: boolean } | null;
