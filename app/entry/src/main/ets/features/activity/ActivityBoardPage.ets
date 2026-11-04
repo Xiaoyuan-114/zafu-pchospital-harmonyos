@@ -42,7 +42,9 @@ export struct ActivityBoardPage {
     const ticket = this.guard.begin(); this.loading = true; this.errorText = ''; this.retryCancellation = false;
     this.phoneId = ''; this.phoneText = ''; this.selectedId = '';
     try { const board = await ActivityService.board(this.param.activityId); if (this.guard.current(ticket)) this.board = board; }
-    catch (error) { if (this.guard.current(ticket)) this.fail(error); }
+    catch (error) {
+      if (this.guard.current(ticket)) { this.board = null; this.fail(error); }
+    }
     finally { if (this.guard.current(ticket)) this.loading = false; }
   }
   private openRecord(id: string): void {
@@ -104,82 +106,121 @@ export struct ActivityBoardPage {
   @Builder
   row(item: StaffRegistration) {
     Column({ space: 10 }) {
-      Text(`${item.name} · ${item.phoneMasked}`).fontSize(18).fontWeight(FontWeight.Bold).width('100%')
-      Text(`${activityIssueLabel(item.issueType)} · ${item.deviceModel === null ? '机型未填写' : item.deviceModel}`).width('100%').fontSize(14)
-      if (item.status === 'CHECKED_IN') { Text(`签到：${activityTime(item.checkedInAt)}`).fontSize(13).width('100%') }
+      Row() {
+        Text(item.name).fontSize(17).fontWeight(FontWeight.Bold).fontColor('#1B2732').layoutWeight(1)
+        Text(item.phoneMasked).fontSize(13).fontColor('#697786')
+      }.width('100%')
+      Text(`${activityIssueLabel(item.issueType)} · ${item.deviceModel === null ? '机型未填写' : item.deviceModel}`)
+        .width('100%').fontSize(13).fontColor('#697786')
+      if (item.status === 'CHECKED_IN') { Text(`签到：${activityTime(item.checkedInAt)}`).fontSize(12).fontColor('#697786').width('100%') }
       if (this.phoneId === item.id && this.phoneText !== '') {
         Row() {
           Text(this.phoneText).layoutWeight(1)
-          Button('隐藏').onClick(() => { this.phoneText = ''; this.phoneId = ''; })
+          Button('隐藏').height(36).fontSize(13).fontColor('#315F93').backgroundColor('#EAF3FB')
+            .onClick(() => { this.phoneText = ''; this.phoneId = ''; })
         }.width('100%')
-      } else { Button('按需查看完整电话').enabled(!this.busy && !this.loading).onClick(() => { this.action('phone', item.id); }) }
+      } else {
+        Button('查看完整电话').height(36).fontSize(13).fontColor('#315F93').backgroundColor('#EAF3FB')
+          .enabled(!this.busy && !this.loading).onClick(() => { this.action('phone', item.id); })
+      }
       if (this.board !== null && this.board.attended && item.status === 'REGISTERED') {
         if (this.selectedId === item.id) {
           ActivityIssueSelector({ value: this.selectedIssueType, disabled: this.busy, onChange: (value: string): void => { this.selectedIssueType = value; } })
-          Button('确认类型并签到入队').enabled(!this.busy && this.board.activity.canOperateStaff).onClick(() => { this.action('check-in', item.id); })
+          Button('确认类型并签到入队').height(42).fontSize(14).backgroundColor('#2465AD')
+            .enabled(!this.busy && this.board.activity.canOperateStaff).onClick(() => { this.action('check-in', item.id); })
         } else {
-          Button('签到 / 调整故障类型').enabled(!this.busy && this.board.activity.canOperateStaff)
+          Button('签到 / 调整故障类型').height(42).fontSize(14).backgroundColor('#2465AD').enabled(!this.busy && this.board.activity.canOperateStaff)
             .onClick(() => { this.selectedId = item.id; this.selectedIssueType = item.issueType; })
         }
       }
       if (this.board !== null && this.board.attended && item.status === 'CHECKED_IN') {
         Row({ space: 10 }) {
-          Button('接待并填写备案').enabled(!this.busy && this.board.activity.canOperateStaff && this.board.pendingServeDraft === null)
+          Button('接待并填写备案').height(42).fontSize(14).backgroundColor('#2465AD').enabled(!this.busy && this.board.activity.canOperateStaff && this.board.pendingServeDraft === null)
             .onClick(() => { this.action('serve', item.id); })
-          Button('撤回排队').enabled(!this.busy).onClick(() => { this.action('withdraw', item.id); })
+          Button('撤回排队').height(42).fontSize(14).fontColor('#536D86').backgroundColor('#EAF1F7').enabled(!this.busy).onClick(() => { this.action('withdraw', item.id); })
         }.width('100%')
       }
-    }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(18)
+    }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(16).alignItems(HorizontalAlign.Start)
   }
   build() {
     Column({ space: 12 }) {
-      Button('刷新看板').enabled(!this.loading && !this.busy).onClick(() => { this.load(); })
+      Row() {
+        Text('现场进度').fontSize(14).fontColor('#697786').layoutWeight(1)
+        Button('刷新').height(36).fontSize(13).fontColor('#315F93').backgroundColor('#E3EDF7')
+          .enabled(!this.loading && !this.busy).onClick(() => { this.load(); })
+      }.width('100%')
       if (this.loading) { LoadingPanel({ text: '正在读取现场看板…' }) }
       if (this.busy) { LoadingPanel({ text: '正在处理…' }) }
       if (this.errorText !== '') { ErrorPanel({ message: this.errorText, onRetry: (): void => { if (this.retryCancellation) this.action('cancel-attendance'); else this.load(); } }) }
       if (this.board !== null) {
-        Text(this.board.activity.title).fontSize(22).fontWeight(FontWeight.Bold).width('100%')
-        if (!this.board.activity.canOperateStaff) { Text('报名截止后开放出勤、签到和接待').fontColor('#69747C').width('100%') }
-        if (!this.board.attended) {
-          Button('标记本场出勤').enabled(!this.busy && this.board.activity.canOperateStaff).onClick(() => { this.action('attendance'); })
-         } else {
-          Text(`本场已出勤 · ${activityTime(this.board.attendanceCheckedInAt)}`).fontSize(13).width('100%')
-          if (this.board.canCancelAttendance) {
-            Button('取消本场出勤').enabled(!this.busy).onClick(() => { this.action('cancel-attendance'); })
-          } else if (this.board.attendanceCancelBlockedReason !== null) {
-            Text(this.board.attendanceCancelBlockedReason).fontSize(13).fontColor('#69747C').width('100%')
+        Column({ space: 10 }) {
+          Text(this.board.activity.title).fontSize(18).lineHeight(27).fontWeight(FontWeight.Bold).fontColor('#1B2732').width('100%')
+          if (!this.board.activity.canOperateStaff) { Text('报名截止后开放出勤、签到和接待').fontSize(13).fontColor('#697786').width('100%') }
+          if (!this.board.attended) {
+            Row() {
+              Text('本场未出勤').fontSize(13).fontColor('#697786').layoutWeight(1)
+              Button('标记出勤').height(40).fontSize(14).backgroundColor('#2465AD')
+                .enabled(!this.busy && this.board.activity.canOperateStaff).onClick(() => { this.action('attendance'); })
+            }.width('100%')
+          } else {
+            Row() {
+              Text(`已出勤 · ${activityTime(this.board.attendanceCheckedInAt)}`).fontSize(13).fontColor('#315F93').layoutWeight(1)
+              if (this.board.canCancelAttendance) {
+                Button('取消出勤').height(40).fontSize(13).fontColor('#536D86').backgroundColor('#EAF1F7')
+                  .enabled(!this.busy).onClick(() => { this.action('cancel-attendance'); })
+              }
+            }.width('100%')
+            if (!this.board.canCancelAttendance && this.board.attendanceCancelBlockedReason !== null) {
+              Text(this.board.attendanceCancelBlockedReason).fontSize(12).fontColor('#697786').width('100%')
+            }
           }
-        }
+        }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(16).alignItems(HorizontalAlign.Start)
         if (this.board.pendingServeDraft !== null) {
-          Button(`继续填写：${this.board.pendingServeDraft.ownerName}（${this.board.pendingServeDraft.activityTitle}）`)
-            .width('100%').enabled(!this.busy).onClick(() => { if (this.board !== null && this.board.pendingServeDraft !== null) this.openRecord(this.board.pendingServeDraft.repairRecordId); })
+          Column({ space: 8 }) {
+            Text(`待填写备案 · ${this.board.pendingServeDraft.ownerName}`).fontSize(14).fontWeight(FontWeight.Medium).fontColor('#1B2732').width('100%')
+            Text(this.board.pendingServeDraft.activityTitle).fontSize(12).fontColor('#697786').maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+            Button('继续填写备案').height(40).fontSize(14).backgroundColor('#2465AD').enabled(!this.busy)
+              .onClick(() => { if (this.board !== null && this.board.pendingServeDraft !== null) this.openRecord(this.board.pendingServeDraft.repairRecordId); })
+          }.width('100%').padding(14).backgroundColor('#EAF3FB').borderRadius(16).alignItems(HorizontalAlign.Start)
         }
         Row({ space: 8 }) {
           ForEach(['待签到', '排队中', '已接待'], (label: string) => {
-            Button(label).fontSize(13).backgroundColor(this.tab === label ? '#1676E5' : '#DEE8F1')
+            Button(label).fontSize(13).height(38).backgroundColor(this.tab === label ? '#2465AD' : '#E3EDF5')
               .fontColor(this.tab === label ? Color.White : '#324353').enabled(!this.busy)
               .onClick(() => { this.tab = label; this.selectedId = ''; this.phoneText = ''; this.phoneId = ''; })
           })
         }.width('100%')
         TextInput({ text: this.query, placeholder: '姓名、电话尾号或故障类型' }).onChange((value: string) => { this.query = value; this.phoneText = ''; })
-        Text(`待签到 ${this.board.eligible.length} · 排队 ${this.board.queue.length} · 已接待 ${this.board.served.length}`).fontSize(13).width('100%')
+        Text(`待签到 ${this.board.eligible.length} · 排队 ${this.board.queue.length} · 已接待 ${this.board.served.length}`)
+          .fontSize(12).fontColor('#697786').width('100%')
         List({ space: 12 }) {
           if (this.tab === '已接待') {
             ForEach(this.served(), (item: ServedRegistration) => {
               ListItem() {
-                Column({ space: 10 }) {
+                Column() {
                   this.row(item)
-                  Text(`备案：${item.recordStatus === null ? '不可用' : repairRecordStatusLabel(item.recordStatus)}`).fontSize(14)
-                  if (item.repairRecordId !== null && item.recordStatus !== null && item.canOpenRecord) {
-                    Button('查看关联备案').enabled(!this.busy).onClick(() => { if (item.repairRecordId !== null) this.openRecord(item.repairRecordId); })
-                  }
-                }.width('100%')
+                  Row({ space: 8 }) {
+                    Text(`备案：${item.recordStatus === null ? '不可用' : repairRecordStatusLabel(item.recordStatus)}`)
+                      .fontSize(13).fontColor('#697786').layoutWeight(1)
+                    if (item.repairRecordId !== null && item.recordStatus !== null && item.canOpenRecord) {
+                      Button('查看备案').height(36).fontSize(13).fontColor('#315F93').backgroundColor('#EAF3FB')
+                        .enabled(!this.busy).onClick(() => { if (item.repairRecordId !== null) this.openRecord(item.repairRecordId); })
+                    }
+                  }.width('100%').padding({ left: 16, right: 16, bottom: 16 })
+                }.width('100%').backgroundColor(Color.White).borderRadius(16)
               }
-            }, (item: ServedRegistration) => item.id)
+            }, (item: ServedRegistration) => JSON.stringify(item))
           } else {
-            ForEach(this.rows(), (item: StaffRegistration) => { ListItem() { this.row(item) } }, (item: StaffRegistration) => item.id)
+            ForEach(this.rows(), (item: StaffRegistration) => { ListItem() { this.row(item) } }, (item: StaffRegistration) => JSON.stringify(item))
           }
-          if ((this.tab === '已接待' ? this.served().length : this.rows().length) === 0) { ListItem() { Text('暂无匹配的报名').padding(24) } }
+          if ((this.tab === '已接待' ? this.served().length : this.rows().length) === 0) {
+            ListItem() {
+              Column() {
+                Text(this.query.trim() === '' ? `${this.tab}暂无报名` : '没有匹配的报名').fontSize(14).fontColor('#697786')
+              }.width('100%').padding(24).backgroundColor(Color.White).borderRadius(16)
+            }
+          }
         }.width('100%').layoutWeight(1)
       }
     }.width('100%').height('100%').padding(16).backgroundColor('#F0F5F8')

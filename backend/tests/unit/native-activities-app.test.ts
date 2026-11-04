@@ -85,6 +85,31 @@ interface Mine {
   loading: boolean;
   hasMore: boolean;
 }
+
+test("现场看板刷新失败清除旧数据，重试成功后恢复", async () => {
+  const identity = { id: "staff" };
+  let fail = false;
+  const page = component<{
+    board: { activity: { id: string } } | null;
+    errorText: string;
+    load(): Promise<void>;
+  }>("ActivityBoardPage", {
+    board: async () => {
+      if (fail) throw Error("offline");
+      return { activity: { id: "event" } };
+    },
+  }, () => identity);
+  await page.load();
+  assert.equal(page.board?.activity.id, "event");
+  fail = true;
+  await page.load();
+  assert.equal(page.board, null);
+  assert.notEqual(page.errorText, "");
+  fail = false;
+  await page.load();
+  assert.equal(page.board?.activity.id, "event");
+  assert.equal(page.errorText, "");
+});
 const pagination = (page: number, total = 25) => ({
   page,
   pageSize: 20,
