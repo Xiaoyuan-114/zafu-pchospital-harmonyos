@@ -58,6 +58,7 @@ export struct RepairOrdersPage {
    */
   initialDetailId: string = '';
   onBack: () => void = () => {};
+  onChanged: () => void = () => {};
   onRegisterBackHandler: (handler: () => boolean) => void = () => {};
   @State status: string = '';
   private listGeneration: number = 0;
@@ -291,6 +292,7 @@ export struct RepairOrdersPage {
 
   private async submitOrder(request: RepairOrderSubmitRequest, idempotencyKey: string): Promise<void> {
     await RepairOrderService.submit(request, idempotencyKey);
+    this.onChanged();
     this.noticeText = SUBMIT_OK_TEXT;
   }
 

@@ -201,6 +201,7 @@ export struct HomePage {
   @State forumRefreshVersion: number = 0;
   @State recordsRevision: number = 0;
   @State workbenchRevision: number = 0;
+  @State serviceDeviceRevision: number = 0;
   @State favoritesRevision: number = 0;
   @State messagesRevision: number = 0;
   @State publicCasesRevision: number = 0;
@@ -578,6 +579,7 @@ export struct HomePage {
       } else if (name === ROUTE_SERVICE) {
         ServicePage({
           onActivities: (): void => { this.pathStack.clear(); this.selectNavigation(1); },
+          deviceRefreshVersion: this.serviceDeviceRevision,
           home: this.home, permissions: this.permissions, pathStack: this.pathStack,
           authenticated: this.authenticated,
           onOpen: (route: string, param: Object | null): void => { this.openRoute(route, param); },
@@ -586,6 +588,7 @@ export struct HomePage {
       } else if (name === ROUTE_REPAIR_ORDERS) {
         RepairOrdersPage({
           onBack: (): void => { this.pathStack.pop(); },
+          onChanged: (): void => { this.serviceDeviceRevision += 1; },
           onRegisterBackHandler: (handler: () => boolean): void => { this.customerOrderBackHandler = handler; },
           initialDetailId: param !== null && param !== undefined
             ? (param as RepairOrderFocusParam).orderId
@@ -830,6 +833,7 @@ export struct HomePage {
           TabContent() {
             ServicePage({
               refreshVersion: this.workbenchRevision,
+              deviceRefreshVersion: this.serviceDeviceRevision,
               onActivities: (): void => { this.selectNavigation(1); },
               home: this.home,
               permissions: this.permissions,
