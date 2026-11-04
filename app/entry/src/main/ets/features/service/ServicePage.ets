@@ -47,6 +47,7 @@ function serviceEntries(): ServiceEntry[] {
 @Component
 export struct ServicePage {
   @Prop refreshVersion: number = 0;
+  @Prop @Watch('refreshDevices') deviceRefreshVersion: number = 0;
   @Prop @Watch('authChanged') authenticated: boolean = false;
   onActivities: () => void = () => {};
   onOpen: (route: string, param: Object | null) => void = () => {};
@@ -61,6 +62,7 @@ export struct ServicePage {
   @State deviceErrorText: string = '';
   /** 列表请求进行中标记：防止重试按钮连点触发并发请求。 */
   private requesting: boolean = false;
+  private deviceRefreshPending: boolean = false;
   private deviceGeneration: number = 0;
 
   aboutToAppear(): void {
@@ -71,14 +73,25 @@ export struct ServicePage {
 
   aboutToDisappear(): void {
     this.requesting = false;
+    this.deviceRefreshPending = false;
     this.deviceGeneration += 1;
   }
 
   private authChanged(): void {
     this.deviceGeneration += 1;
     this.requesting = false;
+    this.deviceRefreshPending = false;
     this.devices = [];
     if (this.authenticated && this.home !== HOME_STAFF) this.loadDevices();
+  }
+
+  private refreshDevices(): void {
+    if (!this.authenticated || this.home === HOME_STAFF) return;
+    if (this.requesting) {
+      this.deviceRefreshPending = true;
+      return;
+    }
+    this.loadDevices();
   }
 
   private entries(): ServiceEntry[] {
@@ -149,7 +162,13 @@ export struct ServicePage {
       this.deviceState = DEVICE_ERROR;
       this.handleLoadError(error);
     } finally {
-      if (generation === this.deviceGeneration) this.requesting = false;
+      if (generation === this.deviceGeneration) {
+        this.requesting = false;
+        if (this.deviceRefreshPending) {
+          this.deviceRefreshPending = false;
+          await this.loadDevices();
+        }
+      }
     }
   }
 
@@ -255,8 +274,20 @@ export struct ServicePage {
           this.onOpen(this.home === HOME_STAFF ? ROUTE_CASE_LIBRARY : ROUTE_PUBLIC_CASES, null);
         } })
     }.width('100%')
-    Text('分类、搜索、指南与案例都由本页进入：游客可读公开指南与知识目录，案例按既有权限要求登录，登录成功后自动续接原操作。')
-      .fontSize(10).fontColor('#8C949A').lineHeight(16)
+    if (this.home === HOME_STAFF) {
+      Text('分类、搜索、指南与案例都由本页进入：游客可读公开指南与知识目录，案例按既有权限要求登录，登录成功后自动续接原操作。')
+        .fontSize(10).fontColor('#8C949A').lineHeight(16)
+    }
+  }
+
+  @Builder
+  featuredService() {
+    Text('精选服务').fontSize(20).fontWeight(FontWeight.Bold).margin({ top: 8 })
+    ReferenceBanner({
+      title: '电脑医院  校园服务', subtitle: '先排查，再安心维修',
+      image: $r('app.media.ref_service_hero'), actionText: '查看维修指南', bannerHeight: 150,
+      onSelect: (): void => { this.onOpen(ROUTE_PUBLIC_GUIDES, null); }
+    })
   }
 
   build() {
@@ -274,13 +305,13 @@ export struct ServicePage {
         Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
           ForEach(this.entries(), (entry: ServiceEntry) => { this.functionCard(entry); }, (entry: ServiceEntry) => entry.title)
         }.width('100%')
-        this.knowledgeSection()
-        Text('精选服务').fontSize(20).fontWeight(FontWeight.Bold).margin({ top: 8 })
-        ReferenceBanner({
-          title: '电脑医院  校园服务', subtitle: '先排查，再安心维修',
-          image: $r('app.media.ref_service_hero'), actionText: '查看维修指南', bannerHeight: 150,
-          onSelect: (): void => { this.onOpen(ROUTE_PUBLIC_GUIDES, null); }
-        })
+        if (this.home === HOME_STAFF) {
+          this.knowledgeSection()
+          this.featuredService()
+        } else {
+          this.featuredService()
+          this.knowledgeSection()
+        }
         Text('快捷服务').fontSize(20).fontWeight(FontWeight.Bold).margin({ top: 15 })
         Row() {
           ReferenceShortcut({ title: '故障问诊', icon: $r('app.media.ref_shield'), onSelect: (): void => { this.onOpen(ROUTE_KNOWLEDGE, null); } })
