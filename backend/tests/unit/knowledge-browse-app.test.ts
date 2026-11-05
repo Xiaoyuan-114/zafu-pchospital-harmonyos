@@ -69,9 +69,10 @@ test("搜索词校验与摘要：大小写一致匹配，仅截取已有正文",
 interface SearchPage {
   authenticated: boolean; home: string; permissions: string[]; onOpen: () => void; notice: string;
   aboutToAppear(): void; aboutToDisappear(): void; search(query: string, type: string): void;
+  inputChanged(query: string): void;
   openCase(item: BrowseCase): Promise<void>;
 }
-function searchPage(target: Promise<BrowseCasePage>): SearchPage {
+function searchPage(target: Promise<BrowseCasePage>, requested: string[] = []): SearchPage {
   const source = readFileSync("../app/entry/src/main/ets/features/knowledge/KnowledgeSearchPage.ets", "utf8");
   const start = source.indexOf("export struct KnowledgeSearchPage");
   const methods = source.slice(start, source.indexOf("  @Builder", start))
@@ -81,10 +82,24 @@ function searchPage(target: Promise<BrowseCasePage>): SearchPage {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
   return runInNewContext(script, { emptySearchState: () => ({ query: "", type: "all" }), KnowledgeSearchController,
-    KnowledgeBrowseService: { guides: async () => [], cases: (_q: string, _p: number, id?: string) => id ? target : Promise.resolve(page(["A"])) },
+    KnowledgeBrowseService: { guides: async () => [], cases: (q: string, _p: number, id?: string) => {
+      if (id) return target; requested.push(q); return Promise.resolve(page(["A"]));
+    } }, setTimeout, clearTimeout,
     ApiRequestError: class extends Error {}, isSessionExpiredCode: () => false, HOME_STAFF: "STAFF",
     ROUTE_CASE_DETAIL: "case-detail", ROUTE_PUBLIC_CASE_DETAIL: "public-case-detail" }) as SearchPage;
 }
+test("输入连续变化时只搜索最终词；离开页面取消等待中的搜索", async () => {
+  const requested: string[] = [];
+  const view = searchPage(Promise.resolve(page([])), requested);
+  view.authenticated = true; view.home = "CUSTOMER";
+  view.aboutToAppear();
+  view.inputChanged("W"); view.inputChanged("Wi"); view.inputChanged("Windows");
+  await new Promise<void>((resolve) => setTimeout(resolve, 450));
+  assert.deepEqual(requested, ["Windows"]);
+  view.inputChanged("later"); view.aboutToDisappear();
+  await new Promise<void>((resolve) => setTimeout(resolve, 450));
+  assert.deepEqual(requested, ["Windows"]);
+});
 test("实际搜索页：打开案例的迟到确认不跨查询或跨页面导航", async () => {
   for (const leave of [false, true]) {
     const pending = deferred<BrowseCasePage>(), view = searchPage(pending.promise); let opened = 0;
