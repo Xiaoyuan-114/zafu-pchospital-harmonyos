@@ -1,0 +1,6 @@
+[knowledge:index] 语料：16 篇（快照 15，内部 1）
+[knowledge:index] 分段：135 块（去重后 135 个内容哈希）
+[knowledge:index] 未配置 EMBEDDING_API_KEY：本次生成**关键词索引**（无向量）。
+[knowledge:index] 配置 embedding 后重新执行本命令即可升级为混合检索索引。
+[knowledge:index] {"indexPath":"data\\knowledge\\index\\knowledge-index.json","indexVersion":"k1.48f43637.3575fd64","builtAt":"2026-11-05T05:26:41.607Z","retrieval":"keyword-only","embedding":null,"documents":16,"chunks":135,"chunksWithEmbedding":0,"chunksWithoutEmbedding":135}
+[knowledge:index] 注意：当前索引不含向量，检索将以关键词模式运行（接口会返回真实 retrievalMode）。
