@@ -8,6 +8,12 @@ import ts from "typescript";
 interface PageState {
   orders: { id: string }[];
   showForm: boolean;
+  formDirty: boolean;
+  formBusy: boolean;
+  formPendingRetry: boolean;
+  leaveConfirmOpen: boolean;
+  formNotice: string;
+  noticeText: string;
   status: string;
   loadingMore: boolean;
   hasMore: boolean;
@@ -18,6 +24,8 @@ interface PageState {
   detailLoading: boolean;
   selected: { id: string } | null;
   handleDetailBack(): boolean;
+  closeForm(): void;
+  discardForm(): void;
   load(): Promise<void>;
   loadMore(): Promise<void>;
   switchStatus(status: string): void;
@@ -25,6 +33,52 @@ interface PageState {
   onChanged: () => void;
   submitOrder(request: object, idempotencyKey: string): Promise<void>;
 }
+
+test("报修草稿返回先确认，取消确认保留表单，明确放弃后返回列表", () => {
+  const page = pageWithList(async () => []);
+  page.showForm = true;
+  page.formDirty = true;
+  assert.equal(page.handleDetailBack(), true);
+  assert.equal(page.leaveConfirmOpen, true);
+  assert.equal(page.showForm, true);
+  assert.equal(page.handleDetailBack(), true);
+  assert.equal(page.leaveConfirmOpen, false);
+  assert.equal(page.formDirty, true);
+  page.handleDetailBack();
+  page.closeForm();
+  assert.equal(page.showForm, false);
+  assert.equal(page.formDirty, false);
+  assert.equal(page.handleDetailBack(), false);
+});
+
+test("空表单直接返回，提交中禁止退出，待确认提交返回时要求确认", () => {
+  const page = pageWithList(async () => []);
+  page.showForm = true;
+  assert.equal(page.handleDetailBack(), true);
+  assert.equal(page.showForm, false);
+  page.showForm = true;
+  page.formBusy = true;
+  assert.equal(page.handleDetailBack(), true);
+  assert.equal(page.showForm, true);
+  assert.equal(page.formNotice, "正在提交，请稍候");
+  page.formBusy = false;
+  page.formPendingRetry = true;
+  assert.equal(page.handleDetailBack(), true);
+  assert.equal(page.leaveConfirmOpen, true);
+});
+
+test("结果未知后离开表单时切换到全部，方便查找可能已提交的单据", async () => {
+  const requested: string[] = [];
+  const page = pageWithList(async (status) => { requested.push(status); return []; });
+  page.showForm = true;
+  page.formPendingRetry = true;
+  page.status = "COMPLETED";
+  page.discardForm();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(page.showForm, false);
+  assert.equal(page.status, "");
+  assert.deepEqual(requested, [""]);
+});
 
 test("详情系统返回先回列表并作废在途详情；列表返回交还导航", () => {
   const page = pageWithList(async () => []);
@@ -77,6 +131,23 @@ test("报修成功后通知服务设备刷新，失败时不通知", async () =>
   fail = false;
   await page.submitOrder({}, "same-key");
   assert.equal(changes, 1);
+});
+
+test("从已完成筛选提交后回到全部并显示新单，切换筛选清除成功提示", async () => {
+  const requested: string[] = [];
+  const page = pageWithList(async (status) => {
+    requested.push(status);
+    return status === "" ? [{ id: "new-order" }] : [];
+  });
+  page.status = "COMPLETED";
+  page.showForm = true;
+  page.noticeText = "提交成功";
+  await page.afterSubmit();
+  assert.equal(page.status, "");
+  assert.deepEqual(requested, [""]);
+  assert.equal(page.orders[0]?.id, "new-order");
+  page.switchStatus("COMPLETED");
+  assert.equal(page.noticeText, "");
 });
 
 test("提交成功发生在首次列表请求期间：排队刷新显示新单，普通重复点击不额外请求", async () => {
