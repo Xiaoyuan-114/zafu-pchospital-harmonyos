@@ -1,4 +1,5 @@
 import { util } from '@kit.ArkTS';
+import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { isNetworkErrorCode } from '../knowledge/KnowledgeFlow';
 import {
@@ -6,7 +7,6 @@ import {
   CARD_RADIUS,
   CONTROL_HEIGHT,
   CONTROL_RADIUS,
-  FONT_HEADING,
   FONT_NOTE,
   FONT_SUBTITLE,
   FONT_TEXT,
@@ -55,6 +55,7 @@ export struct RepairOrderForm {
   /** 鉴权失效时通知上层回登录页（与列表/详情的 handleError 一致）。 */
   onSessionExpired: () => void = () => {
   };
+  onDraftStateChanged: (dirty: boolean, busy: boolean, pendingRetry: boolean) => void = () => {};
   @State deviceModel: string = '';
   @State deviceSerial: string = '';
   @State faultDescription: string = '';
@@ -62,11 +63,37 @@ export struct RepairOrderForm {
   @State busy: boolean = false;
   @State errorText: string = '';
   @State fieldErrors: FieldErrorMap = {};
+  @State pendingRetry: boolean = false;
+  private previousKeyboardMode: KeyboardAvoidMode | null = null;
   /** 幂等键：同一张表单的重试复用同一个键，成功后才换新的。 */
   private idempotencyKey: string = '';
 
   aboutToAppear(): void {
     this.idempotencyKey = `app-${util.generateRandomUUID(true)}`;
+    this.previousKeyboardMode = this.getUIContext().getKeyboardAvoidMode();
+    this.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+  }
+
+  aboutToDisappear(): void {
+    if (this.previousKeyboardMode !== null) {
+      this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardMode);
+      this.previousKeyboardMode = null;
+    }
+  }
+
+  private notifyDraftState(): void {
+    const dirty = this.deviceModel.length > 0 || this.deviceSerial.length > 0 ||
+      this.faultDescription.length > 0 || this.contactPhone.length > 0;
+    this.onDraftStateChanged(dirty, this.busy, this.pendingRetry);
+  }
+
+  private clearFieldError(name: string): void {
+    const remaining: FieldErrorMap = {};
+    for (const key of Object.keys(this.fieldErrors)) {
+      if (key !== name) remaining[key] = this.fieldErrors[key];
+    }
+    this.fieldErrors = remaining;
+    this.errorText = '';
   }
 
   private fieldError(name: string): string {
@@ -140,6 +167,7 @@ export struct RepairOrderForm {
     }
 
     this.busy = true;
+    this.notifyDraftState();
     try {
       const request: RepairOrderSubmitRequest = {
         deviceModel: this.deviceModel.trim(),
@@ -159,6 +187,7 @@ export struct RepairOrderForm {
       this.faultDescription = '';
       this.contactPhone = '';
       this.fieldErrors = {};
+      this.pendingRetry = false;
       await this.onSubmitted();
     } catch (error) {
       if (error instanceof ApiRequestError) {
@@ -166,6 +195,9 @@ export struct RepairOrderForm {
         if (isSessionExpiredCode(error.code)) {
           this.onSessionExpired();
           return;
+        }
+        if (error.status === 0 || error.status >= 500 || error.code === 'UNEXPECTED_RESPONSE') {
+          this.pendingRetry = true;
         }
         const serverFields = this.readServerFieldErrors(error);
         this.fieldErrors = serverFields;
@@ -176,10 +208,12 @@ export struct RepairOrderForm {
           : (isNetworkErrorCode(error.code) ? `${error.message}（请检查网络与服务器地址后重试）` : error.message);
         // 失败时不换键：用户重试仍带同一个 Idempotency-Key，服务端会去重。
       } else {
+        this.pendingRetry = true;
         this.errorText = '提交失败，请重试';
       }
     } finally {
       this.busy = false;
+      this.notifyDraftState();
     }
   }
 
@@ -195,8 +229,11 @@ export struct RepairOrderForm {
         .height(CONTROL_HEIGHT)
         .backgroundColor($r('app.color.field_bg'))
         .borderRadius(CONTROL_RADIUS)
+        .enabled(!this.busy && !this.pendingRetry)
         .onChange((next: string) => {
           onChange(next);
+          this.clearFieldError(name);
+          this.notifyDraftState();
         })
       if (this.fieldError(name) !== '') {
         Text(this.fieldError(name))
@@ -212,10 +249,9 @@ export struct RepairOrderForm {
 
   build() {
     Column({ space: GAP_LG }) {
-      Text('提交报修')
-        .fontSize(FONT_HEADING)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary'))
+      Text('请填写设备和故障信息，工作人员会根据联系方式与您联系。')
+        .fontSize(FONT_TEXT)
+        .fontColor($r('app.color.text_secondary'))
         .width('100%')
         .textAlign(TextAlign.Start)
 
@@ -235,8 +271,11 @@ export struct RepairOrderForm {
           .height(104)
           .backgroundColor($r('app.color.field_bg'))
           .borderRadius(CONTROL_RADIUS)
+          .enabled(!this.busy && !this.pendingRetry)
           .onChange((next: string) => {
             this.faultDescription = next;
+            this.clearFieldError('faultDescription');
+            this.notifyDraftState();
           })
         if (this.fieldError('faultDescription') !== '') {
           Text(this.fieldError('faultDescription'))
@@ -260,6 +299,12 @@ export struct RepairOrderForm {
           .fontColor($r('app.color.danger'))
           .width('100%')
           .textAlign(TextAlign.Start)
+      }
+
+      if (this.pendingRetry) {
+        Text('提交结果尚未确认，请重试原内容，或返回列表查看报修记录。')
+          .fontSize(FONT_NOTE).fontColor($r('app.color.text_secondary'))
+          .width('100%').textAlign(TextAlign.Start)
       }
 
       Button() {

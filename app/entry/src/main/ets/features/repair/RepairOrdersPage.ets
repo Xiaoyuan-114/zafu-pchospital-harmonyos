@@ -70,6 +70,11 @@ export struct RepairOrdersPage {
   @State errorText: string = '';
   @State noticeText: string = '';
   @State showForm: boolean = false;
+  @State formDirty: boolean = false;
+  @State formBusy: boolean = false;
+  @State formPendingRetry: boolean = false;
+  @State leaveConfirmOpen: boolean = false;
+  @State formNotice: string = '';
   @State selected: RepairOrderView | null = null;
   /** 详情面板是否打开：与 selected 解耦，首次请求失败时面板也能渲染出加载/错误提示。 */
   @State detailOpen: boolean = false;
@@ -124,16 +129,45 @@ export struct RepairOrdersPage {
     this.closeDetail();
   }
 
-  /** 详情与列表共用路由，系统返回与页头返回都先回到列表。 */
+  /** 详情和表单共用路由，系统返回与页头返回遵循相同规则。 */
   private handleDetailBack(): boolean {
-    if (!this.detailOpen) return false;
-    this.closeDetail();
-    return true;
+    if (this.leaveConfirmOpen) {
+      this.leaveConfirmOpen = false;
+      return true;
+    }
+    if (this.detailOpen) {
+      this.closeDetail();
+      return true;
+    }
+    if (this.showForm) {
+      if (this.formBusy) this.formNotice = '正在提交，请稍候';
+      else if (this.formDirty || this.formPendingRetry) this.leaveConfirmOpen = true;
+      else this.closeForm();
+      return true;
+    }
+    return false;
+  }
+
+  private closeForm(): void {
+    this.showForm = false;
+    this.formDirty = false;
+    this.formBusy = false;
+    this.formPendingRetry = false;
+    this.leaveConfirmOpen = false;
+    this.formNotice = '';
+  }
+
+  private discardForm(): void {
+    const pendingRetry = this.formPendingRetry;
+    this.closeForm();
+    if (pendingRetry) this.status = '';
+    this.load(true);
   }
 
   private switchStatus(status: string): void {
     if (this.status === status) return;
     this.status = status;
+    this.noticeText = '';
     this.closeDetail();
     this.load(true);
   }
@@ -297,7 +331,8 @@ export struct RepairOrdersPage {
   }
 
   private async afterSubmit(): Promise<void> {
-    this.showForm = false;
+    this.closeForm();
+    this.status = '';
     await this.load(true);
   }
 
@@ -479,14 +514,50 @@ export struct RepairOrdersPage {
       .onClick(() => { this.switchStatus(status); })
   }
 
+  @Builder
+  leaveConfirmation() {
+    Column() {
+      Blank().layoutWeight(1)
+      Column({ space: 14 }) {
+        Text('放弃本次填写？').fontSize(20).fontWeight(FontWeight.Medium).fontColor('#171D21').width('100%')
+        Text(this.formPendingRetry ? '本次提交结果尚未确认。返回后请先查看报修记录，再决定是否重新提交。' : '已填写的内容将不会保存。')
+          .fontSize(14).fontColor('#666D72').width('100%')
+        Button('继续填写').width('100%').height(46).backgroundColor('#0755FF').fontColor(Color.White)
+          .onClick(() => { this.leaveConfirmOpen = false; })
+        Button('放弃并返回列表').width('100%').height(46).backgroundColor('#F1F3F5').fontColor('#333B40')
+          .onClick(() => { this.discardForm(); })
+      }.width('100%').padding(22).backgroundColor(Color.White).borderRadius({ topLeft: 24, topRight: 24 })
+    }.width('100%').height('100%').backgroundColor('#66000000')
+  }
+
   build() {
+    Stack({ alignContent: Alignment.Bottom }) {
     Column({ space: 0 }) {
-      DetailHeader({ title: this.detailOpen ? '报修详情' : '我的报修',
-        onBack: (): void => { if (this.detailOpen) this.closeDetail(); else this.onBack(); }, refresh: true,
-        onRefresh: (): void => { if (this.detailOpen) this.retryDetail(); else this.load(true); } })
+      if (this.showForm && !this.detailOpen) {
+        DetailHeader({ title: '提交报修', onBack: (): void => { this.handleDetailBack(); } })
+      } else {
+        DetailHeader({ title: this.detailOpen ? '报修详情' : '我的报修',
+          onBack: (): void => { if (!this.handleDetailBack()) this.onBack(); }, refresh: true,
+          onRefresh: (): void => { if (this.detailOpen) this.retryDetail(); else this.load(true); } })
+      }
       if (this.detailOpen) {
         Scroll() { Column() { this.detailPanel() }.width('100%').padding({ left: 18, right: 18, bottom: 24 }) }
           .width('100%').layoutWeight(1).scrollBar(BarState.Off).align(Alignment.Top)
+      } else if (this.showForm) {
+        Scroll() {
+          Column({ space: 12 }) {
+            if (this.formNotice !== '') {
+              Text(this.formNotice).fontSize(14).fontColor('#A55319').width('100%')
+            }
+            RepairOrderForm({ onSubmitted: () => this.afterSubmit(),
+              submit: (request: RepairOrderSubmitRequest, idempotencyKey: string) => this.submitOrder(request, idempotencyKey),
+              onSessionExpired: () => this.onSessionExpired(),
+              onDraftStateChanged: (dirty: boolean, busy: boolean, pendingRetry: boolean): void => {
+                this.formDirty = dirty; this.formBusy = busy; this.formPendingRetry = pendingRetry;
+                if (!busy) this.formNotice = '';
+              } })
+          }.width('100%').padding({ left: 18, right: 18, top: 12, bottom: 24 })
+        }.layoutWeight(1).width('100%').scrollBar(BarState.Off).align(Alignment.Top)
       } else {
       Scroll() {
         Row() {
@@ -504,16 +575,11 @@ export struct RepairOrdersPage {
       if (this.noticeText !== '') {
         Text(this.noticeText).fontSize(13).fontColor('#288050').padding({ left: 18, right: 18, bottom: 10 })
       }
-      if (this.state === STATE_EMPTY && !this.showForm && !this.detailOpen) {
+      if (this.state === STATE_EMPTY) {
         Column() { this.emptyView() }.width('100%').layoutWeight(1)
       } else {
         Scroll() {
           Column({ space: 16 }) {
-            if (this.showForm) {
-              RepairOrderForm({ onSubmitted: () => this.afterSubmit(),
-                submit: (request: RepairOrderSubmitRequest, idempotencyKey: string) => this.submitOrder(request, idempotencyKey),
-                onSessionExpired: () => this.onSessionExpired() })
-            }
             if (this.state === STATE_LOADING) { this.loadingView() }
             else if (this.state === STATE_ERROR) { this.errorView() }
             else if (this.state === STATE_EMPTY) { Text('暂无报修单').fontColor('#969EA4').padding(24) }
@@ -525,10 +591,12 @@ export struct RepairOrdersPage {
           }.width('100%').padding({ left: 18, right: 18, bottom: 16 }).alignItems(HorizontalAlign.Start)
         }.layoutWeight(1).width('100%').scrollBar(BarState.Off).align(Alignment.Top)
       }
-      Button(this.showForm ? '收起报修表单' : '我要报修').fontSize(16).height(44).width(184)
+      Button('我要报修').fontSize(16).height(44).width(184)
         .backgroundColor('#0755FF').fontColor(Color.White).borderRadius(24).margin({ top: 8, bottom: 18 })
-        .onClick(() => { this.showForm = !this.showForm; this.noticeText = ''; })
+        .onClick(() => { this.showForm = true; this.noticeText = ''; })
       }
     }.width('100%').height('100%').backgroundColor(DETAIL_BACKGROUND)
+    if (this.leaveConfirmOpen) { this.leaveConfirmation() }
+    }.width('100%').height('100%')
   }
 }
