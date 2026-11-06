@@ -1,6 +1,8 @@
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
+import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { NavPusher, ROUTE_KNOWLEDGE_SOURCE } from '../../core/ui/Routes';
 import { ErrorPanel } from '../../core/ui/StatePanel';
+import { DetailHeader } from '../../core/ui/ReferenceDetail';
 import {
   CARD_GAP,
   CARD_PADDING,
@@ -72,11 +74,13 @@ const CLARIFY_HINT: string = '请补充上面的信息后再发一次。';
  * - 消息顺序不变量由 KnowledgeFlow 的纯函数保证：回答紧跟对应问题，
  *   旧问题重试不会跑到新问题之后，重复失败仍可重试；
  * - 会话过期交给上层（onSessionExpired → 现有退出/回登录流程）。
- * - 页面标题由 HomePage 的 NavDestination 提供，本页只保留对话工具行。
+ * - 页头和系统返回共用退出确认；打开引用时对话保留在导航栈内。
  */
 @Component
 export struct KnowledgePage {
   pathStack: NavPathStack = new NavPathStack();
+  onBack: () => void = () => {};
+  onRegisterBackHandler: (handler: () => boolean) => void = () => {};
   onSessionExpired: () => void = () => {
   };
   @State messages: ChatMessage[] = [];
@@ -88,9 +92,43 @@ export struct KnowledgePage {
   private nextId: number = 1;
   /** 代次：清空/离开时自增，旧请求的异步返回据此丢弃。 */
   private generation: number = 0;
+  private scrollTimer: number = -1;
+  private clearConfirming: boolean = false;
+  private leaveConfirming: boolean = false;
+  private keyboardModeChanged: boolean = false;
+  private previousKeyboardMode: KeyboardAvoidMode = 0;
+
+  aboutToAppear(): void {
+    this.onRegisterBackHandler((): boolean => this.requestBack());
+  }
+
+  aboutToDisappear(): void {
+    this.onRegisterBackHandler((): boolean => false);
+    this.restoreKeyboardMode();
+    this.clearChat();
+  }
+
+  private resizeForKeyboard(): void {
+    if (this.keyboardModeChanged) return;
+    const context = this.getUIContext();
+    this.previousKeyboardMode = context.getKeyboardAvoidMode();
+    context.setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+    this.keyboardModeChanged = true;
+  }
+
+  private restoreKeyboardMode(): void {
+    if (!this.keyboardModeChanged) return;
+    this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardMode);
+    this.keyboardModeChanged = false;
+  }
 
   private scrollToBottom(): void {
-    this.scroller.scrollEdge(Edge.Bottom);
+    if (this.scrollTimer !== -1) clearTimeout(this.scrollTimer);
+    const generation = this.generation;
+    this.scrollTimer = setTimeout(() => {
+      this.scrollTimer = -1;
+      if (generation === this.generation) this.scroller.scrollEdge(Edge.Bottom);
+    }, 80);
   }
 
   /** 历史消息：跳过 pending/failed 的助手消息，按契约上限截断（取最近的若干条）。 */
@@ -141,19 +179,20 @@ export struct KnowledgePage {
   private async dispatch(userMessageIndex: number): Promise<void> {
     const question: string = this.messages[userMessageIndex].text;
     const history: KnowledgeChatMessage[] = this.buildHistory(userMessageIndex);
+    const shouldScroll = userMessageIndex === this.messages.length - 1;
     const generation: number = this.generation;
     const pendingId: number = this.nextId++;
     this.sending = true;
     // 回答插在问题之后（而不是追加到末尾）：旧问题重试不会打乱后续问答顺序。
     this.messages = insertAfterUser(this.messages, userMessageIndex, pendingMessage(pendingId));
-    this.scrollToBottom();
+    if (shouldScroll) this.scrollToBottom();
     try {
       const data: KnowledgeChatData = await KnowledgeService.sendChat(question, history);
       if (generation !== this.generation) {
         return;
       }
       this.messages = replaceMessageById(this.messages, pendingId, responseMessage(pendingId, data));
-      this.scrollToBottom();
+      if (shouldScroll) this.scrollToBottom();
     } catch (error) {
       if (generation !== this.generation) {
         return;
@@ -167,7 +206,8 @@ export struct KnowledgePage {
       }
       const apiError: ApiRequestError | null = error instanceof ApiRequestError ? error : null;
       const errorCode: string = apiError !== null ? apiError.code : 'UNKNOWN';
-      const errorMessage: string = apiError !== null ? apiError.message : '请求失败，请重试';
+      const errorMessage: string = errorCode === 'AI_NOT_CONFIGURED' ? '问诊服务尚未配置，请稍后重试' :
+        (apiError !== null ? apiError.message : '请求失败，请重试');
       this.messages = replaceMessageById(
         this.messages,
         pendingId,
@@ -178,7 +218,7 @@ export struct KnowledgePage {
           isNetworkErrorCode(errorCode) ? `${errorMessage}（请检查服务器地址、网络与后端是否已启动）` : errorMessage
         )
       );
-      this.scrollToBottom();
+      if (shouldScroll) this.scrollToBottom();
     } finally {
       if (generation === this.generation) {
         this.sending = false;
@@ -201,9 +241,53 @@ export struct KnowledgePage {
 
   private clearChat(): void {
     this.generation += 1;
+    if (this.scrollTimer !== -1) { clearTimeout(this.scrollTimer); this.scrollTimer = -1; }
     this.messages = [];
     this.inputText = '';
     this.sending = false;
+  }
+
+  private async confirmClear(): Promise<void> {
+    if (this.clearConfirming || this.leaveConfirming || (this.messages.length === 0 && this.inputText === '')) return;
+    this.clearConfirming = true;
+    const generation = this.generation;
+    try {
+      const answer = await this.getUIContext().getPromptAction().showDialog({
+        title: '清空本次对话？',
+        message: this.sending ? '对话和正在生成的结果将清除' : '对话和输入内容将清除',
+        buttons: [{ text: '继续对话', color: '#66727C' }, { text: '清空', color: '#D34848' }]
+      });
+      if (generation === this.generation && answer.index === 1) this.clearChat();
+    } catch (_) {
+      // 系统返回或点击遮罩关闭弹窗时保留当前对话。
+    } finally {
+      this.clearConfirming = false;
+    }
+  }
+
+  private requestBack(): boolean {
+    if (this.clearConfirming || this.leaveConfirming) return true;
+    if (this.messages.length === 0 && this.inputText.length === 0 && !this.sending) return false;
+    this.confirmLeave();
+    return true;
+  }
+
+  private async confirmLeave(): Promise<void> {
+    if (this.leaveConfirming || this.clearConfirming) return;
+    this.leaveConfirming = true;
+    const generation = this.generation;
+    try {
+      const answer = await this.getUIContext().getPromptAction().showDialog({
+        title: '退出本次问诊？',
+        message: this.sending ? '退出后，对话和正在生成的结果将清除' : '退出后，对话和输入内容将清除',
+        buttons: [{ text: '继续对话', color: '#66727C' }, { text: '退出', color: '#D34848' }]
+      });
+      if (generation === this.generation && answer.index === 1) this.onBack();
+    } catch (_) {
+      // 系统返回或点击遮罩关闭弹窗时保留当前对话。
+    } finally {
+      this.leaveConfirming = false;
+    }
   }
 
   private openCitation(citation: KnowledgeCitation): void {
@@ -214,14 +298,14 @@ export struct KnowledgePage {
   @Builder
   emptyState() {
     Column({ space: GAP_SM }) {
-      Text('有出处的维修知识问答')
+      Text('电脑问题，可以先问问')
         .fontSize(FONT_HEADING)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
-      Text('回答依据当前账号可访问的资料，并给出可打开的引用；资料不足时会追问或说明。')
+      Text('描述遇到的问题，问诊会参考当前账号可访问的维修资料。')
         .fontSize(FONT_TEXT)
         .fontColor($r('app.color.text_secondary'))
-      Text('试试这样问：')
+      Text('试试这样问')
         .fontSize(FONT_NOTE)
         .fontColor($r('app.color.text_secondary'))
         .margin({ top: GAP_SM })
@@ -293,6 +377,7 @@ export struct KnowledgePage {
       .justifyContent(FlexAlign.End)
     } else {
       Column({ space: GAP_SM }) {
+        Text('电脑医院 · 知识问答').fontSize(FONT_CHIP).fontWeight(FontWeight.Medium).fontColor('#607B91')
         if (message.status === STATUS_PENDING) {
           Row({ space: GAP_SM }) {
             LoadingProgress().width(20).height(20)
@@ -359,8 +444,9 @@ export struct KnowledgePage {
   }
 
   build() {
+    Column() {
+    DetailHeader({ title: '知识问答', onBack: (): void => { if (!this.requestBack()) this.onBack(); } })
     Column({ space: CARD_GAP }) {
-      // 标题在 NavDestination 标题栏；这里只放对话工具行（清空）。
       Row() {
         Blank()
         Button('清空本次对话')
@@ -368,9 +454,9 @@ export struct KnowledgePage {
           .fontSize(FONT_NOTE)
           .backgroundColor($r('app.color.surface'))
           .fontColor($r('app.color.text_secondary'))
-          .enabled(this.messages.length > 0)
+          .enabled(this.messages.length > 0 || this.inputText.length > 0)
           .onClick(() => {
-            this.clearChat();
+            this.confirmClear();
           })
       }
       .width('100%')
@@ -399,7 +485,10 @@ export struct KnowledgePage {
           .fontSize(FONT_BODY)
           .backgroundColor($r('app.color.surface'))
           .borderRadius(CONTROL_RADIUS)
+          .maxLength(MAX_QUESTION_CHARS)
           .enterKeyType(EnterKeyType.Send)
+          .onFocus(() => { this.resizeForKeyboard(); })
+          .onBlur(() => { this.restoreKeyboardMode(); })
           .onChange((value: string) => {
             this.inputText = value;
           })
@@ -419,6 +508,7 @@ export struct KnowledgePage {
               .fontColor(Color.White)
           }
         }
+        .width(72)
         .height(CONTROL_HEIGHT)
         .backgroundColor($r('app.color.brand'))
         .enabled(!this.sending && this.inputText.trim() !== '')
@@ -429,8 +519,11 @@ export struct KnowledgePage {
       .width('100%')
     }
     .width('100%')
-    .height('100%')
+    .layoutWeight(1)
     .padding(PAGE_PADDING)
+    }
+    .width('100%')
+    .height('100%')
     .backgroundColor($r('app.color.start_window_background'))
   }
 }

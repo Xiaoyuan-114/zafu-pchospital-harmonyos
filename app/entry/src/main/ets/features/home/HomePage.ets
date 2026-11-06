@@ -133,6 +133,7 @@ export struct HomePage {
   private loginIntent: LoginIntent = new LoginIntent();
   private loginBusy: boolean = false;
   private customerOrderBackHandler: () => boolean = () => false;
+  private knowledgeBackHandler: () => boolean = () => false;
   private forumComposeBackHandler: () => boolean = () => false;
   @State knowledgeSearchRevision: number = 0;
   private registerBusy: boolean = false;
@@ -625,6 +626,8 @@ export struct HomePage {
       } else if (name === ROUTE_KNOWLEDGE) {
         KnowledgePage({
           pathStack: this.pathStack,
+          onBack: (): void => { this.pathStack.pop(); },
+          onRegisterBackHandler: (handler: () => boolean): void => { this.knowledgeBackHandler = handler; },
           onSessionExpired: (): void => {
             this.expireSession();
           }
@@ -710,7 +713,7 @@ export struct HomePage {
     .hideTitleBar(name === ROUTE_PERSONAL_PROFILE || name === ROUTE_REPAIR_ORDERS || name === ROUTE_STAFF_ORDERS
       || name === ROUTE_STAFF_ORDER_DETAIL || name === ROUTE_PUBLIC_GUIDES || name === ROUTE_CASE_DETAIL
       || name === ROUTE_CASE_LIBRARY || name === ROUTE_PUBLIC_CASES || name === ROUTE_PUBLIC_CASE_DETAIL || name === ROUTE_KNOWLEDGE_SEARCH
-      || name === ROUTE_KNOWLEDGE_LIBRARY || name === ROUTE_FORUM_POST || name === ROUTE_FORUM_COMPOSE
+      || name === ROUTE_KNOWLEDGE_LIBRARY || name === ROUTE_KNOWLEDGE || name === ROUTE_FORUM_POST || name === ROUTE_FORUM_COMPOSE
       || name === ROUTE_MY_FORUM_POSTS || name.indexOf('shopping') >= 0)
     .title(name === ROUTE_LOGIN ? '登录' : routeTitle(name))
     .onShown(() => {
@@ -738,6 +741,7 @@ export struct HomePage {
         return true;
       }
       if (name === ROUTE_REPAIR_ORDERS && this.customerOrderBackHandler()) return true;
+      if (name === ROUTE_KNOWLEDGE && this.knowledgeBackHandler()) return true;
       if (name === ROUTE_LOGIN || name === ROUTE_PASSWORD_CHANGE) {
         // 放弃登录 / 改密即作废续接意图；注册路由刻意不清，注册页取消后要回登录页续接原操作。
         this.loginIntent = new LoginIntent();
