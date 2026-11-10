@@ -22,6 +22,8 @@ interface PageState {
   loadMore(): Promise<void>;
   switchStatus(status: string): void;
   afterSubmit(): Promise<void>;
+  onChanged: () => void;
+  submitOrder(request: object, idempotencyKey: string): Promise<void>;
 }
 
 test("详情系统返回先回列表并作废在途详情；列表返回交还导航", () => {
@@ -42,6 +44,7 @@ test("详情系统返回先回列表并作废在途详情；列表返回交还�
 
 function pageWithList(
   listMine: (status: string, page: number) => Promise<{ id: string }[]>,
+  submit: () => Promise<void> = async () => {},
 ): PageState {
   const source = readFileSync(
     "../app/entry/src/main/ets/features/repair/RepairOrdersPage.ets",
@@ -57,12 +60,24 @@ function pageWithList(
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
   return runInNewContext(script, {
-    RepairOrderService: { listMine },
+    RepairOrderService: { listMine, submit },
     ApiRequestError: class extends Error {},
     isSessionExpiredCode: () => false,
     isNetworkErrorCode: () => false,
   }) as PageState;
 }
+
+test("报修成功后通知服务设备刷新，失败时不通知", async () => {
+  let fail = true;
+  let changes = 0;
+  const page = pageWithList(async () => [], async () => { if (fail) throw Error("offline"); });
+  page.onChanged = () => { changes++; };
+  await assert.rejects(page.submitOrder({}, "same-key"));
+  assert.equal(changes, 0);
+  fail = false;
+  await page.submitOrder({}, "same-key");
+  assert.equal(changes, 1);
+});
 
 test("提交成功发生在首次列表请求期间：排队刷新显示新单，普通重复点击不额外请求", async () => {
   let resolveInitial: (orders: { id: string }[]) => void = () => {

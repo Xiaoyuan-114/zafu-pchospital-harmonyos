@@ -1,0 +1,16 @@
+{
+  "baseCommit": "4504810fb3e754a907e39c03f855c3a587784a36",
+  "baselineHapSha256": "69fb076252578676d18092b262660d48541b3641b105b420be52136565c77687",
+  "hap": {
+    "path": "app/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    "sha256": "3ecaefbf659b054dc3be72c5e79df70abaf58fe9bb33258eb49bc42af6c68797",
+    "bytes": 4310542
+  },
+  "sourceSha256": {
+    "app/entry/src/main/ets/features/service/ServicePage.ets": "c06eaaac636a46d6756c2c9d22b054b9ee698cb79ba92bd017a971346fa76694",
+    "app/entry/src/main/ets/features/repair/RepairOrdersPage.ets": "9aa8a7c43f7281352d89385c5921162714720b35d37e61c2d7d173d004b27671",
+    "app/entry/src/main/ets/features/home/HomePage.ets": "e1d9dfe852daf407f91ebdd4ca2125213f10cb6afc170399cc32c65442fc124d",
+    "backend/tests/unit/service-device-refresh.test.ts": "8ae5091514680b2ee8721f4659beb94a3d1a9cc5351f8c60698c9a97c33d0b7b",
+    "backend/tests/unit/repair-orders-app-refresh.test.ts": "c4bfe47cfb9daf8646c7007dab22f73e10b6e48f8a9b14e1461759b037a1953d"
+  }
+}
