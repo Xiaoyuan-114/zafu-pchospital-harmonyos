@@ -32,6 +32,7 @@ export struct StaffRepairOrderDetailPage {
   @State actionBusy: boolean = false;
   @State actionError: string = '';
   @State cancelOpen: boolean = false;
+  @State completeOpen: boolean = false;
   @State cancelNote: string = '';
   @State noticeText: string = '';
   /** 备案页保存/提交后自增本键（AppStorage 广播），本页监听刷新备案摘要。 */
@@ -66,6 +67,7 @@ export struct StaffRepairOrderDetailPage {
         return;
       }
       this.order = view;
+      this.completeOpen = false;
       this.loading = false;
     } catch (error) {
       if (generation !== this.generation) {
@@ -108,6 +110,7 @@ export struct StaffRepairOrderDetailPage {
     await this.runAction(async () => {
       this.order = await StaffRepairOrderService.progress(this.param.orderId, toStatus, '');
       this.noticeText = okText;
+      this.completeOpen = false;
     });
   }
 
@@ -134,6 +137,8 @@ export struct StaffRepairOrderDetailPage {
     this.noticeText = '';
     try {
       await action();
+      const current = AppStorage.get<number>('staffOrderRevision');
+      AppStorage.setOrCreate<number>('staffOrderRevision', (current === undefined ? 0 : current) + 1);
     } catch (error) {
       this.handleActionError(error);
     } finally {
@@ -274,9 +279,27 @@ export struct StaffRepairOrderDetailPage {
           })
         }
         if (this.order.actions.canComplete) {
-          this.actionButton('完成维修', true, false, () => {
-            this.runProgress('COMPLETED', '已完成维修处理，可继续补填维修备案。');
-          })
+          if (this.completeOpen) {
+            Column({ space: 10 }) {
+              Text('确认维修处理已完成？完成后客户会看到新的报修进度；维修备案仍需单独填写和审核。')
+                .fontSize(13).fontColor($r('app.color.text_secondary')).width('100%')
+              Row({ space: 10 }) {
+                Button(this.actionBusy ? '处理中…' : '确认完成')
+                  .layoutWeight(1).height(42).fontSize(14).enabled(!this.actionBusy)
+                  .backgroundColor($r('app.color.brand')).onClick(() => {
+                    this.runProgress('COMPLETED', '已完成维修处理，可继续补填维修备案。');
+                  })
+                Button('暂不完成')
+                  .layoutWeight(1).height(42).fontSize(14).enabled(!this.actionBusy)
+                  .backgroundColor($r('app.color.field_bg')).fontColor($r('app.color.text_primary'))
+                  .onClick(() => { this.completeOpen = false; })
+              }.width('100%')
+            }.width('100%')
+          } else {
+            this.actionButton('完成维修', true, false, () => {
+              this.completeOpen = true;
+            })
+          }
         }
         if (this.order.actions.canCreateRecord) {
           this.secondaryButton('建立维修备案', () => {

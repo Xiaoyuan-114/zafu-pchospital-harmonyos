@@ -19,10 +19,23 @@ interface ScopeTab {
   label: string;
 }
 
+interface StatusTab {
+  status: string;
+  label: string;
+}
+
 const SCOPE_TABS: ScopeTab[] = [
   { scope: 'unassigned', label: '待受理' },
   { scope: 'mine', label: '我负责' },
   { scope: 'all', label: '全部' }
+];
+const STATUS_TABS: StatusTab[] = [
+  { status: '', label: '全部状态' },
+  { status: 'SUBMITTED', label: '待受理' },
+  { status: 'ACCEPTED', label: '已受理' },
+  { status: 'REPAIRING', label: '维修中' },
+  { status: 'COMPLETED', label: '已完成' },
+  { status: 'CANCELLED', label: '已取消' }
 ];
 
 /**
@@ -39,6 +52,7 @@ export struct StaffRepairOrdersPage {
   onSessionExpired: () => void = () => {
   };
   @State scope: string = 'unassigned';
+  @State statusFilter: string = '';
   @State state: number = STATE_LOADING;
   @State orders: StaffRepairOrderView[] = [];
   @State errorText: string = '';
@@ -47,8 +61,18 @@ export struct StaffRepairOrdersPage {
   @State hasMore: boolean = false;
   @State loadMoreErrorText: string = '';
   private generation: number = 0;
+  @StorageLink('staffOrderRevision') @Watch('onOrderRevision') orderRevision: number = 0;
 
   aboutToAppear(): void {
+    this.load();
+  }
+
+  aboutToDisappear(): void {
+    this.generation += 1;
+    this.loadingMore = false;
+  }
+
+  private onOrderRevision(): void {
     this.load();
   }
 
@@ -63,6 +87,8 @@ export struct StaffRepairOrdersPage {
   private async load(): Promise<void> {
     this.generation = this.generation + 1;
     const generation = this.generation;
+    const scope = this.scope;
+    const status = this.statusFilter;
     this.state = STATE_LOADING;
     this.errorText = '';
     this.loadMoreErrorText = '';
@@ -71,7 +97,7 @@ export struct StaffRepairOrdersPage {
     // 若这里不清掉，刷新/切换范围后按钮会永远停在「加载中…」。
     this.loadingMore = false;
     try {
-      const items = await StaffRepairOrderService.queue(this.scope, '', 1);
+      const items = await StaffRepairOrderService.queue(scope, status, 1);
       if (generation !== this.generation) {
         return;
       }
@@ -95,11 +121,13 @@ export struct StaffRepairOrdersPage {
       return;
     }
     const generation = this.generation;
+    const scope = this.scope;
+    const status = this.statusFilter;
     this.loadingMore = true;
     this.loadMoreErrorText = '';
     try {
       const nextPage = this.currentPage + 1;
-      const items = await StaffRepairOrderService.queue(this.scope, '', nextPage);
+      const items = await StaffRepairOrderService.queue(scope, status, nextPage);
       if (generation !== this.generation) {
         return;
       }
@@ -128,6 +156,13 @@ export struct StaffRepairOrdersPage {
       return;
     }
     this.scope = next;
+    this.statusFilter = '';
+    this.load();
+  }
+
+  private switchStatus(next: string): void {
+    if (this.statusFilter === next) return;
+    this.statusFilter = next;
     this.load();
   }
 
@@ -159,6 +194,16 @@ export struct StaffRepairOrdersPage {
       Rect().width(30).height(2).fill(this.scope === tab.scope ? '#0764E9' : Color.Transparent).borderRadius(1)
     }.height(46).justifyContent(FlexAlign.End).padding({ left: 12, right: 12 })
       .onClick(() => { this.switchScope(tab.scope); })
+  }
+
+  @Builder
+  statusTab(tab: StatusTab) {
+    Text(tab.label).fontSize(13)
+      .fontColor(this.statusFilter === tab.status ? '#0755C9' : '#667078')
+      .padding({ left: 15, right: 15, top: 9, bottom: 9 })
+      .backgroundColor(this.statusFilter === tab.status ? '#E4EEFF' : Color.White)
+      .borderRadius(18)
+      .onClick(() => { this.switchStatus(tab.status); })
   }
 
   @Builder
@@ -194,11 +239,14 @@ export struct StaffRepairOrdersPage {
       }
       .width('100%')
 
-      Text(`提交时间 ${formatOrderTime(order.createdAt)}`)
-        .fontSize(12)
-        .fontColor($r('app.color.text_secondary'))
-        .width('100%')
-        .textAlign(TextAlign.Start)
+      Row() {
+        Text(`提交时间 ${formatOrderTime(order.createdAt)}`)
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Start)
+        Text('查看详情 ›').fontSize(12).fontColor('#0755C9')
+      }.width('100%')
     }
     .width('100%')
     .padding(16)
@@ -275,11 +323,22 @@ export struct StaffRepairOrdersPage {
       Row() {
         ForEach(SCOPE_TABS, (tab: ScopeTab) => { this.scopeTab(tab); }, (tab: ScopeTab) => tab.scope)
       }.width('100%').height(56).padding({ left: 16, right: 16 })
+      if (this.scope !== 'unassigned') {
+        Scroll() {
+          Row({ space: 8 }) {
+            ForEach(STATUS_TABS, (tab: StatusTab) => {
+              if (this.scope === 'all' || tab.status !== 'SUBMITTED') this.statusTab(tab);
+            }, (tab: StatusTab) => tab.status)
+          }.padding({ left: 18, right: 18 })
+        }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).height(48)
+      }
       Column() {
-        DetailNotice({ text: '待受理为公共队列，受理后由负责人员处理。报修进度与维修备案审核分别记录。' })
+        DetailNotice({ text: this.scope === 'unassigned' ? '公共待受理队列。受理成功后，这张报修单会进入“我负责”。' :
+          this.scope === 'mine' ? '这里是你负责的报修单；处理进度与维修备案分别记录。' : '查看报修单与处理状态。操作权限以详情页实际可执行项为准。' })
       }.width('100%').padding({ left: 18, right: 18, top: 14, bottom: 14 })
       if (this.state === STATE_EMPTY) {
-        Column() { DetailEmptyOrders({ text: this.scope === 'mine' ? '您还没有负责的报修单' : '暂无报修单' }) }
+        Column() { DetailEmptyOrders({ text: this.statusFilter !== '' ? `暂无${repairOrderStatusLabel(this.statusFilter)}报修` :
+          this.scope === 'mine' ? '暂无我负责的报修' : '暂无报修单' }) }
           .width('100%').layoutWeight(1)
       } else {
         Scroll() {
