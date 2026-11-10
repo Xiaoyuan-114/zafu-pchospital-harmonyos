@@ -33,7 +33,7 @@ export struct DetailHeader {
 
 @Component
 export struct DetailNotice {
-  text: string = '';
+  @Prop text: string = '';
   build() {
     Row({ space: 10 }) {
       Image($r('app.media.detail_info')).width(20).height(20)
