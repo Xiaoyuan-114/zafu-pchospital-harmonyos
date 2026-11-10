@@ -43,6 +43,7 @@ export struct KnowledgeSearchPage {
   private uiGeneration: number = 0;
   private controller: KnowledgeSearchController | null = null;
   private active: boolean = false;
+  private inputTimer: number = -1;
 
   aboutToAppear(): void {
     this.active = true;
@@ -60,13 +61,31 @@ export struct KnowledgeSearchPage {
       this.search(this.initialQuery, 'all');
     } else this.refresh();
   }
-  aboutToDisappear(): void { this.active = false; this.uiGeneration += 1; this.opening = false; this.controller?.invalidate(); }
+  aboutToDisappear(): void {
+    this.active = false; this.cancelInputTimer(); this.uiGeneration += 1; this.opening = false; this.controller?.invalidate();
+  }
+  private cancelInputTimer(): void {
+    if (this.inputTimer !== -1) { clearTimeout(this.inputTimer); this.inputTimer = -1; }
+  }
   private includeCases(): boolean {
     return this.authenticated && (this.home !== HOME_STAFF || this.permissions.includes('repair:read'));
   }
   private search(query: string, type: string): void {
+    this.cancelInputTimer();
     this.uiGeneration += 1; this.opening = false; this.notice = '';
     this.controller?.search(query, type, this.includeCases());
+  }
+  private inputChanged(query: string): void {
+    this.cancelInputTimer();
+    this.uiGeneration += 1; this.opening = false; this.notice = '';
+    this.controller?.invalidate();
+    const type = this.state.type;
+    const next = emptySearchState(query, type);
+    next.guidesLoading = query.trim() !== '' && type !== 'cases';
+    next.casesLoading = query.trim() !== '' && this.includeCases() && type !== 'guides';
+    this.state = next;
+    if (query.trim() === '') return;
+    this.inputTimer = setTimeout(() => { this.inputTimer = -1; this.search(query, type); }, 350);
   }
   private refresh(): void { if (this.active) this.search(this.state.query, this.state.type); }
   private scopeChanged(): void { this.refresh(); }
@@ -181,7 +200,7 @@ export struct KnowledgeSearchPage {
           Image($r('app.media.home_search')).width(18).height(18)
           TextInput({ text: this.state.query, placeholder: '搜索指南或维修案例' }).layoutWeight(1).height(44).fontSize(16)
             .maxLength(100).backgroundColor(Color.Transparent).padding({ left: 0, right: 0 })
-            .onChange((value: string) => { this.search(value, this.state.type); }).onSubmit(() => { this.refresh(); })
+            .onChange((value: string) => { this.inputChanged(value); }).onSubmit(() => { this.refresh(); })
           if (this.state.query !== '') {
             Button('×').width(28).height(32).padding(0).fontSize(25).backgroundColor(Color.Transparent).fontColor('#8C959B')
               .accessibilityText('清空搜索').onClick(() => { this.search('', this.state.type); })

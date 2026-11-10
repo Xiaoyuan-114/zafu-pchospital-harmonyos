@@ -6,6 +6,7 @@ import { HOME_STAFF } from '../../core/auth/AuthContract';
 import { isSessionExpiredCode } from '../../core/network/ApiClient';
 import { CommunityService } from '../profile/CommunityService';
 import { GUIDE_CATEGORIES, guideCategory } from './GuideCategory';
+import { formatGuideContent } from './GuideReading';
 
 interface PublicGuide {
   id: string;
@@ -25,6 +26,7 @@ export struct PublicGuidesPage {
   onSessionExpired: () => void = () => {};
   @State favoriting: boolean = false;
   @State notice: string = '';
+  @State favoriteError: string = '';
   @Prop initialGuideId: string = '';
   onConsult: () => void = () => {};
   onBack: () => void = () => {};
@@ -47,7 +49,7 @@ export struct PublicGuidesPage {
     this.selectedId = id;
     this.loading = true;
     this.errorText = '';
-    this.detail = null; this.notice = ''; this.favoriting = false;
+    this.detail = null; this.notice = ''; this.favoriteError = ''; this.favoriting = false;
     try {
       const path = '/api/v1/public/knowledge/guides';
       if (id === '') {
@@ -70,13 +72,17 @@ export struct PublicGuidesPage {
 
   private async favorite(): Promise<void> {
     if (this.favoriting || this.loading || this.detail === null) return;
-    this.favoriting = true; this.notice = '';
+    this.favoriting = true; this.notice = ''; this.favoriteError = '';
     const generation = this.generation;
     try { await CommunityService.favorite('GUIDE', this.selectedId); if (generation === this.generation) this.notice = '指南已收藏'; }
     catch (error) { if (generation !== this.generation) return;
       if (error instanceof ApiRequestError && isSessionExpiredCode(error.code)) { this.onSessionExpired(); return; }
-      this.errorText = error instanceof ApiRequestError ? error.message : '收藏失败';
-      if (error instanceof ApiRequestError && error.code === 'KNOWLEDGE_SOURCE_NOT_FOUND') this.detail = null;
+      const message = error instanceof ApiRequestError ? error.message : '收藏失败，请重试';
+      if (error instanceof ApiRequestError && error.code === 'KNOWLEDGE_SOURCE_NOT_FOUND') {
+        this.detail = null; this.errorText = message;
+      } else {
+        this.favoriteError = message;
+      }
     } finally { if (generation === this.generation) this.favoriting = false; }
   }
 
@@ -211,14 +217,13 @@ export struct PublicGuidesPage {
               }.width('100%').justifyContent(FlexAlign.Center).margin({ top: 8 })
               Text('来源：电脑医院公开文档 · 版本 ' + (this.detail.revision === null ? '未知' : this.detail.revision.substring(0, 8)))
                 .fontSize(12).fontColor('#8B9097').width('100%')
-              if (this.notice !== '') { Text(this.notice).fontSize(13).fontColor('#288050').width('100%') }
             }.width('100%')
           }
           ForEach(this.detail.sections, (section: PublicGuideSection, index: number) => {
             ListItem() {
               Column({ space: 12 }) {
                 Text(section.title).fontSize(18).fontWeight(FontWeight.Medium).fontColor('#292D32').width('100%')
-                Text(section.content).fontSize(15).lineHeight(26).fontColor('#6C7278').width('100%')
+                Text(formatGuideContent(section.content)).fontSize(15).lineHeight(26).fontColor('#505A62').width('100%')
                   .copyOption(CopyOptions.InApp)
               }.width('100%').alignItems(HorizontalAlign.Start)
             }
@@ -233,6 +238,12 @@ export struct PublicGuidesPage {
                 }.width('100%').padding(18)
               }.width('100%').backgroundColor('#F1EEFC').borderRadius(20).onClick(this.onConsult)
               if (this.authenticated && this.home !== HOME_STAFF) {
+                if (this.notice !== '') {
+                  Text(this.notice).fontSize(13).fontColor('#288050').width('100%').textAlign(TextAlign.Start)
+                }
+                if (this.favoriteError !== '') {
+                  Text(this.favoriteError).fontSize(13).fontColor('#B94141').width('100%').textAlign(TextAlign.Start)
+                }
                 Button(this.favoriting ? '收藏中…' : '收藏指南').height(44).width('100%')
                   .fontColor('#6650C8').backgroundColor('#EEEAFB').enabled(!this.favoriting).onClick(() => { this.favorite(); })
               }

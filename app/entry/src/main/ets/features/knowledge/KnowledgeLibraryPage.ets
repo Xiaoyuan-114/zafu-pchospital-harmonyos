@@ -208,17 +208,21 @@ export struct KnowledgeLibraryPage {
           Column() {
             Image($r('app.media.detail_diagnosis')).width(41).height(49)
             Button('AI 故障问诊').width(170).height(41).fontSize(18).fontWeight(FontWeight.Medium)
-              .backgroundColor('#0755FF').fontColor(Color.White).borderRadius(25).margin({ top: 66 })
+              .backgroundColor('#0755FF').fontColor(Color.White).borderRadius(25).margin({ top: 48 })
               .onClick(() => { this.onOpen(ROUTE_KNOWLEDGE, null); })
-          }.width('100%').height(316).padding({ top: 116 }).alignItems(HorizontalAlign.Center)
+          }.width('100%').height(260).padding({ top: 80 }).alignItems(HorizontalAlign.Center)
+          Button({ type: ButtonType.Normal }) {
+            Row({ space: 10 }) {
+              Image($r('app.media.home_search')).width(20).height(20)
+              Text('搜索指南或维修案例').fontSize(15).fontColor('#7C868E').layoutWeight(1).textAlign(TextAlign.Start)
+              Text('搜索').fontSize(14).fontColor('#0755FF')
+            }.width('100%').padding({ left: 16, right: 16 })
+          }.width('100%').height(48).backgroundColor(Color.White).borderRadius(24).margin({ bottom: 22 })
+            .accessibilityText('搜索指南或维修案例').onClick(() => { this.onOpen(ROUTE_KNOWLEDGE_SEARCH, null); })
           Row({ space: 8 }) {
             Text('?').fontSize(13).fontWeight(FontWeight.Bold).fontColor(Color.White)
               .width(17).height(17).textAlign(TextAlign.Center).backgroundColor('#6A7074').borderRadius(9)
             Text('获取帮助').fontSize(16).fontWeight(FontWeight.Medium).fontColor('#626B71').layoutWeight(1)
-            Button({ type: ButtonType.Circle }) {
-              Image($r('app.media.home_search')).width(19).height(19)
-            }.width(28).height(28).backgroundColor(Color.Transparent).accessibilityText('搜索知识')
-              .onClick(() => { this.onOpen(ROUTE_KNOWLEDGE_SEARCH, null); })
           }.width('100%').margin({ bottom: 12 })
           Column({ space: 14 }) {
             ForEach(this.categories(), (item: CategoryItem) => { this.categoryRow(item); }, (item: CategoryItem) => item.title)
