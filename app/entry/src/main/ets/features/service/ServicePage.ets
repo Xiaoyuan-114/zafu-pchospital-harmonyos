@@ -99,17 +99,17 @@ export struct ServicePage {
       return serviceEntries();
     }
     const entries: ServiceEntry[] = [
-      { title: '报修工作台', note: '待受理与我的处理', icon: $r('app.media.ref_repair'), hue: 'purple', route: ROUTE_STAFF_ORDERS, ready: true },
-      { title: '知识问答', note: '有出处的 AI 咨询', icon: $r('app.media.ref_shield'), hue: 'blue', route: ROUTE_KNOWLEDGE, ready: true },
-      { title: '典型案例库', note: '已发布的典型案例', icon: $r('app.media.ref_system'), hue: 'gold', route: ROUTE_CASE_LIBRARY, ready: true }
+      { title: '报修工作台', note: '待受理与我的处理', icon: $r('app.media.ref_repair'), hue: 'purple', route: ROUTE_STAFF_ORDERS, ready: true }
     ];
-    if (this.permissions.includes('activity:staff')) entries.push({ title: '成员活动', note: '出勤与现场接待', icon: $r('app.media.ref_activity'), hue: 'purple', route: ROUTE_STAFF_ACTIVITIES, ready: true });
-    if (this.permissions.includes('activity:admin')) entries.push({ title: '管理', note: '活动与报名管理', icon: $r('app.media.ref_grid'), hue: 'blue', route: ROUTE_MANAGEMENT, ready: true });
     if (this.permissions.includes('repair:review')) {
       entries.push({ title: '备案审核', note: '审核维修备案', icon: $r('app.media.ref_document'), hue: 'red', route: ROUTE_STAFF_REVIEW, ready: true });
     } else {
       entries.push({ title: '维修备案', note: '在已受理报修中建档', icon: $r('app.media.ref_document'), hue: 'green', route: ROUTE_STAFF_ORDERS, ready: true });
     }
+    if (this.permissions.includes('activity:staff')) entries.push({ title: '成员活动', note: '出勤与现场接待', icon: $r('app.media.ref_activity'), hue: 'purple', route: ROUTE_STAFF_ACTIVITIES, ready: true });
+    entries.push({ title: '知识问答', note: '有出处的 AI 咨询', icon: $r('app.media.ref_shield'), hue: 'blue', route: ROUTE_KNOWLEDGE, ready: true });
+    entries.push({ title: '典型案例库', note: '已发布的典型案例', icon: $r('app.media.ref_system'), hue: 'gold', route: ROUTE_CASE_LIBRARY, ready: true });
+    if (this.permissions.includes('activity:admin')) entries.push({ title: '管理', note: '活动与报名管理', icon: $r('app.media.ref_grid'), hue: 'blue', route: ROUTE_MANAGEMENT, ready: true });
     return entries;
   }
 
@@ -299,12 +299,15 @@ export struct ServicePage {
           onRecords: (): void => { this.onOpen(this.home === HOME_STAFF ? ROUTE_STAFF_ORDERS : ROUTE_REPAIR_ORDERS, null); }
         })
         this.deviceSection()
-        if (this.authenticated && this.home === HOME_STAFF && this.permissions.includes('member.profile.read_self')) {
-          WorkbenchSummary({ refreshVersion: this.refreshVersion, onOpen: this.onOpen, onSessionExpired: this.onSessionExpired })
+        if (this.home === HOME_STAFF) {
+          Text('常用工作').fontSize(20).fontWeight(FontWeight.Bold).margin({ top: 8 })
         }
         Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
           ForEach(this.entries(), (entry: ServiceEntry) => { this.functionCard(entry); }, (entry: ServiceEntry) => entry.title)
         }.width('100%')
+        if (this.authenticated && this.home === HOME_STAFF && this.permissions.includes('member.profile.read_self')) {
+          WorkbenchSummary({ refreshVersion: this.refreshVersion, onOpen: this.onOpen, onSessionExpired: this.onSessionExpired })
+        }
         if (this.home === HOME_STAFF) {
           this.knowledgeSection()
           this.featuredService()
