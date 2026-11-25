@@ -3,7 +3,8 @@ import { common } from '@kit.AbilityKit';
 
 const STORE_NAME: string = 'pc_hospital_app';
 const KEY_BASE_URL: string = 'api_base_url';
-export const DEFAULT_API_BASE_URL: string = 'https://harmony-api.pczafu.cn';
+export const DEFAULT_API_BASE_URL: string = 'http://10.0.2.2:13080';
+const LEGACY_SHARED_API_BASE_URL: string = 'https://harmony-api.pczafu.cn';
 
 /**
  * API 地址规范化：去空白、缺协议补 `http://`、去尾部斜杠。
@@ -35,13 +36,17 @@ export class ApiConfig {
     return ApiConfig.baseUrl;
   }
 
-  /** 新安装默认共享实验后端；已有开发地址保留，仍可在连接设置切换。 */
+  /** 默认连接模拟器宿主机；旧共享地址自动迁移，其他自定义地址保留。 */
   static async loadSaved(context: common.Context): Promise<string> {
     try {
       const store = await preferences.getPreferences(context, { name: STORE_NAME });
       const saved = await store.get(KEY_BASE_URL, '') as string;
       const url = normalizeBaseUrl(saved);
-      if (url !== '') {
+      if (url === LEGACY_SHARED_API_BASE_URL) {
+        ApiConfig.baseUrl = DEFAULT_API_BASE_URL;
+        await store.put(KEY_BASE_URL, DEFAULT_API_BASE_URL);
+        await store.flush();
+      } else if (url !== '') {
         ApiConfig.baseUrl = url;
       }
     } catch (error) {

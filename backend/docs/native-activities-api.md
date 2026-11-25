@@ -74,7 +74,7 @@
 
 ## 验证与交付限制
 
-见 [本轮收尾验证](../../docs/verification/issue-62-completion.md) 和 [首轮历史](../../docs/verification/issue-62-activities.md)。取消采用下方明确规则；所有判断仍由服务器完成。未部署共享后端，不代表共享地址已具备这些接口。默认 App 地址仍是共享地址，开发验收使用显式配置的独立本机地址。
+见 [本轮收尾验证](../../docs/verification/issue-62-completion.md) 和 [首轮历史](../../docs/verification/issue-62-activities.md)。取消采用下方明确规则；所有判断仍由服务器完成。开发与验收使用本机后端和独立课设数据库。
 
 ## DELETE /member/repair-activities/{id}/attendance
 

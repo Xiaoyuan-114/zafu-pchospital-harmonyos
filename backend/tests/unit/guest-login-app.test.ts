@@ -185,19 +185,20 @@ test("退出请求进行中拦截切页，完成后回游客首页，避免落�
   assert.equal(page.pathStack.names.join(","), "login");
 });
 
-test("新安装采用共享地址，已有开发地址保留", async () => {
+test("新安装及旧共享地址使用本机，其他自定义地址保留", async () => {
   const source = readFileSync("../app/entry/src/main/ets/core/network/ApiConfig.ets", "utf8")
     .replace(/import[\s\S]*?from\s+['"][^'"]+['"];\s*/g, "")
     .replace(/export /g, "");
   for (const [saved, expected] of [
-    ["", "https://harmony-api.pczafu.cn"],
+    ["", "http://10.0.2.2:13080"],
+    ["https://harmony-api.pczafu.cn/", "http://10.0.2.2:13080"],
     ["http://127.0.0.1:13080", "http://127.0.0.1:13080"],
   ]) {
     const code = ts.transpileModule(source + "\nApiConfig;", {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     }).outputText;
     const config = runInNewContext(code, {
-      preferences: { getPreferences: async () => ({ get: async () => saved }) },
+      preferences: { getPreferences: async () => ({ get: async () => saved, put: async () => {}, flush: async () => {} }) },
     }) as { loadSaved(context: object): Promise<string> };
     assert.equal(await config.loadSaved({}), expected);
   }
@@ -216,7 +217,7 @@ test("没有会话或恢复断网时进入游客首页，不授予身份", async
   }).outputText;
   for (const unavailableReason of ["", "网络不可达"]) {
     const root = runInNewContext(code, {
-      ApiConfig: { loadSaved: async () => "https://harmony-api.pczafu.cn" },
+      ApiConfig: { loadSaved: async () => "http://10.0.2.2:13080" },
       SessionService: { restore: async () => ({ identity: null, unavailableReason }) },
     }) as {
       boot(): Promise<void>;
