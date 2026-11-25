@@ -17,7 +17,7 @@ function page<T>(file: string, name: string, deps: Record<string, unknown>): T {
   }).outputText;
   return runInNewContext(code, {
     ApiRequestError: class extends Error {},
-    ApiConfig: { getBaseUrl: () => "https://harmony-api.pczafu.cn" },
+    ApiConfig: { getBaseUrl: () => "http://10.0.2.2:13080" },
     HOME_STAFF: "STAFF",
     guideCategory,
     ...deps,
