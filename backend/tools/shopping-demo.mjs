@@ -37,4 +37,3 @@ for (const [category, name, image, price, stock] of [
   await request(`/api/v1/shopping/products/${product.id}/images`, { method: "POST", headers, body: form });
   console.log(`已创建：${name}`);
 }
-
