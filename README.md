@@ -124,6 +124,7 @@ App 只访问 API，原生通道使用 `X-Client-Type: native` 和 Bearer，会�
 
 ## 文档索引
 
+- [立项参考 PPT](docs/参考PPT.pptx)：团队立项与课程汇报的功能目标
 - [当前目标与需求分析](docs/current-goals.md)、[当前四个模块任务](#当前模块任务)
 - [开发方案与历史基线](docs/development-plan.md)、[旧 Web 迁移任务](docs/tasks/web-migration/README.md)（保留历史，冲突处以当前目标为准）
 - [参考图索引](docs/reference/my-huawei/README.md)、[项目规则](AGENTS.md)
