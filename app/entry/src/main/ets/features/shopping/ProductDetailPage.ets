@@ -335,8 +335,15 @@ export struct ProductDetailPage {
       Column({ space: 14 }) {
         Text('确认购买').fontSize(20).fontWeight(FontWeight.Bold).fontColor('#101416').width('100%')
         if (this.detail !== null) {
-          Text(this.detail.title).fontSize(14).fontColor('#2B343A').maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+          Row({ space: 12 }) {
+            ShoppingImage({ url: this.detail.coverUrl ?? '', radius: 12 }).width(72).height(72)
+            Column({ space: 6 }) {
+              Text(this.detail.title).fontSize(15).fontColor('#2B343A').maxLines(2)
+                .textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+              Text(shoppingMoney(this.detail.priceCents)).fontSize(17).fontWeight(FontWeight.Bold)
+                .fontColor('#C0442D').width('100%')
+            }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          }.width('100%')
         }
         Row({ space: 12 }) {
           Text('数量').fontSize(14).fontColor('#4D5860').layoutWeight(1)
@@ -361,14 +368,14 @@ export struct ProductDetailPage {
           Text(shoppingMoney(this.detail === null ? 0 : this.detail.priceCents * this.quantity))
             .fontSize(22).fontWeight(FontWeight.Bold).fontColor('#C0442D')
         }.width('100%')
-        Text('线下付款取货，本应用不承诺线上支付；下单后请与卖家约定取货时间。')
+        Text('线下付款取货 · 请与卖家约定取货时间')
           .fontSize(12).fontColor('#6B7780').lineHeight(18).width('100%')
         if (this.buyError !== '') {
           Text(this.buyError).fontSize(12).fontColor($r('app.color.danger')).width('100%')
         }
         Button(this.buying ? '提交中…' : (this.retryIntent() !== null ? '重试同一请求' : '确认下单'))
           .width('100%').height(46).fontSize(15).fontColor(Color.White)
-          .backgroundColor($r('app.color.brand')).enabled(!this.buying)
+          .backgroundColor($r('app.color.brand')).borderRadius(23).enabled(!this.buying)
           .onClick(() => {
             this.confirmBuy();
           })
@@ -567,7 +574,7 @@ export struct ProductDetailPage {
                 }.width('100%').padding(14).backgroundColor('#FFF8E8').borderRadius(CARD_RADIUS)
               }
 
-              Text('线下付款取货，本应用不承诺线上支付；下单前请与卖家确认成色与取货地点。')
+              Text('线下付款取货 · 购买前请确认成色和取货地点')
                 .fontSize(10).fontColor('#8C949A').lineHeight(16).width('100%')
             }
             .width('100%')

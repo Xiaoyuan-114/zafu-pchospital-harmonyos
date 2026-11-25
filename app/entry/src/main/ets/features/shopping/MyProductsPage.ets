@@ -150,10 +150,16 @@ export struct MyProductsPage {
       DetailHeader({ title: '我发布的商品', onBack: this.onBack, onRefresh: () => this.reload(), refresh: true })
       Scroll() {
         Column({ space: 12 }) {
-          Button('发布新商品', { type: ButtonType.Normal })
-            .width('100%').height(46).fontSize(15).fontColor(Color.White)
-            .backgroundColor($r('app.color.brand')).borderRadius(23)
-            .onClick(() => this.openCreate())
+          Row({ space: 12 }) {
+            Column({ space: 5 }) {
+              Text('我的闲置与好物').fontSize(18).fontWeight(FontWeight.Bold).fontColor('#1F2933').width('100%')
+              Text('发布并管理你的商品').fontSize(12).fontColor('#6B7780').width('100%')
+            }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+            Button('发布商品', { type: ButtonType.Normal })
+              .height(40).fontSize(13).fontColor(Color.White)
+              .backgroundColor($r('app.color.brand')).borderRadius(20)
+              .onClick(() => this.openCreate())
+          }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(CARD_RADIUS)
           if (this.loading) {
             Row() {
               LoadingProgress().width(26).height(26).color($r('app.color.brand'))
@@ -167,7 +173,7 @@ export struct MyProductsPage {
             }.width('100%').padding({ top: 60 })
           } else if (this.products.length === 0) {
             DetailEmptyOrders({ text: '还没有发布商品' })
-            Text('点击上方按钮发布第一件商品；发布后在这里查看编辑与下架状态。')
+            Text('发布后可在这里管理商品。')
               .fontSize(12).fontColor('#8C949A').width('100%').textAlign(TextAlign.Center)
           } else {
             ForEach(this.products, (item: ShoppingProductView) => {

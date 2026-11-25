@@ -145,7 +145,7 @@ export function productListQuery(params: URLSearchParams): {
   const category = params.get("category")?.trim().toUpperCase();
   if (category && !isProductCategory(category))
     throw new AppError("VALIDATION_FAILED", "category 参数无效", {
-      fieldErrors: { category: ["必须是 SECONDHAND 或 CONSUMABLE"] },
+      fieldErrors: { category: ["请选择有效的商品分类"] },
     });
   const q = params.get("q")?.replace(/\s+/g, " ").trim();
   if (q && q.length > shoppingLimits.maxQueryLength)

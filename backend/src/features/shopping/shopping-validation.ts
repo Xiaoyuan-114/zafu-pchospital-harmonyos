@@ -74,7 +74,7 @@ function validateStock(
   errors: Record<string, string[]>,
   min = 0,
 ): void {
-  if (category === "SECONDHAND") {
+  if (category !== "CONSUMABLE") {
     // 二手是单件交易：库存固定 1，下单后归 0，取消回补到 1；
     // 编辑时允许保留 0（已售罄）或改回 1，但不允许大于 1。
     if (!Number.isSafeInteger(stock) || stock < min || stock > 1)
@@ -102,7 +102,7 @@ function validateCondition(
 }
 
 function validateCategory(category: string, errors: Record<string, string[]>): void {
-  if (!isProductCategory(category)) errors.category = ["category 必须是 SECONDHAND 或 CONSUMABLE"];
+  if (!isProductCategory(category)) errors.category = ["请选择有效的商品分类"];
 }
 
 /**

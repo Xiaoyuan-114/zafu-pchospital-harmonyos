@@ -7,7 +7,9 @@ import { ShoppingImage } from './ShoppingImage';
 import { ShoppingService } from './ShoppingService';
 import {
   PRODUCT_CATEGORY_CONSUMABLE,
-  PRODUCT_CATEGORY_SECONDHAND,
+  PRODUCT_CATEGORY_COMPUTER,
+  PRODUCT_CATEGORY_COMPONENT,
+  PRODUCT_CATEGORY_PERIPHERAL,
   ShoppingGoodsParam,
   ShoppingProductView,
   shoppingCategoryLabel,
@@ -43,8 +45,8 @@ export struct ShoppingPage {
   @State failed: boolean = false;
   @State errorText: string = '';
   @State bannerTitle: string = '选购';
-  @State bannerSubtitle: string = '真实商品接入后显示在这里，不使用演示商品充数。';
-  @State bannerNote: string = '等待第一件商品';
+  @State bannerSubtitle: string = '发现身边的电脑好物';
+  @State bannerNote: string = '暂无在售商品';
   private scroller: Scroller = new Scroller();
   private requestGeneration: number = 0;
 
@@ -76,8 +78,8 @@ export struct ShoppingPage {
     const item: ShoppingProductView | null = this.newest();
     if (item === null) {
       this.bannerTitle = '选购';
-      this.bannerSubtitle = '真实商品接入后显示在这里，不使用演示商品充数。';
-      this.bannerNote = '等待第一件商品';
+      this.bannerSubtitle = '发现身边的电脑好物';
+      this.bannerNote = '暂无在售商品';
       return;
     }
     this.bannerTitle = `新上架 · ${item.title}`;
@@ -183,22 +185,28 @@ export struct ShoppingPage {
   }
 
   @Builder
-  bannerSlide(title: string, subtitle: string, note: string, background: string) {
+  bannerSlide() {
+    Row({ space: 12 }) {
     Column({ space: 8 }) {
-      Text(title).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#14202A').maxLines(1)
+      Text(this.bannerTitle).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#14202A').maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(subtitle).fontSize(13).fontColor('#33414D').maxLines(2).lineHeight(19)
+      Text(this.bannerSubtitle).fontSize(13).fontColor('#33414D').maxLines(2).lineHeight(19)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Row({ space: 6 }) {
-        Text(note).fontSize(11).fontColor('#5D6A75')
+        Text(this.bannerNote).fontSize(11).fontColor('#5D6A75')
       }
     }
-    .width('100%')
-    .height('100%')
-    .padding(18)
+    .layoutWeight(1)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Start)
-    .backgroundColor(background)
+    if (this.newest() !== null && this.newest()?.coverUrl) {
+      ShoppingImage({ url: this.newest()?.coverUrl ?? '', radius: 18 }).width(130).height(130)
+    }
+    }
+    .width('100%')
+    .height(168)
+    .padding(18)
+    .backgroundColor('#FFE6C7')
     .borderRadius(CARD_RADIUS)
   }
 
@@ -291,32 +299,30 @@ export struct ShoppingPage {
           .backgroundColor(Color.White)
           .borderRadius(14)
 
-          // 16:9 横幅：有真实商品时才挂 Swiper，避免 Swiper 缓存空态里的首屏内容。
-          if (this.products.length === 0) {
-            this.bannerSlide('选购', '真实商品接入后显示在这里，不使用演示商品充数。',
-              '等待第一件商品', '#FFE6C7')
-          } else {
-            Swiper() {
-              this.bannerSlide(this.bannerTitle, this.bannerSubtitle, this.bannerNote, '#FFE6C7')
-              this.bannerSlide(
-                `${this.total} 件在售`,
-                '二手电脑配件与维修耗材，线下付款取货；本应用不承诺线上支付。',
-                this.appliedCategory === '' ? '全部分类' : `当前筛选：${shoppingCategoryLabel(this.appliedCategory)}`,
-                '#DCEBFA'
-              )
-            }
-            .width('100%')
-            .height(168)
-            .autoPlay(false)
-            .indicator(true)
-            .loop(false)
-          }
+          // 横幅与当前列表使用同一份结果；点击进入当前商品详情。
+          Stack() {
+            this.bannerSlide()
+          }.onClick(() => {
+              const item: ShoppingProductView | null = this.newest();
+              if (item !== null) this.openProduct(item);
+            })
 
           Row({ space: 4 }) {
-            this.shortcut($r('app.media.ref_laptop_hero'), '二手配件', '', PRODUCT_CATEGORY_SECONDHAND)
-            this.shortcut($r('app.media.ref_boot'), '维修耗材', '', PRODUCT_CATEGORY_CONSUMABLE)
-            this.shortcut($r('app.media.ref_document'), '我的购物订单', ROUTE_SHOPPING_ORDERS, '')
-            this.shortcut($r('app.media.ref_flag'), '发布商品', ROUTE_SHOPPING_MY_PRODUCTS, '')
+            this.shortcut($r('app.media.ref_laptop_hero'), '整机', '', PRODUCT_CATEGORY_COMPUTER)
+            this.shortcut($r('app.media.ref_boot'), '配件', '', PRODUCT_CATEGORY_COMPONENT)
+            this.shortcut($r('app.media.ref_document'), '外设', '', PRODUCT_CATEGORY_PERIPHERAL)
+            this.shortcut($r('app.media.ref_flag'), '维修耗材', '', PRODUCT_CATEGORY_CONSUMABLE)
+          }.width('100%')
+
+          Row({ space: 12 }) {
+            Button('我的购物订单').layoutWeight(1).height(40).fontSize(13)
+              .backgroundColor(Color.White).fontColor('#3D474F').onClick(() => {
+                this.onOpen(ROUTE_SHOPPING_ORDERS, null);
+              })
+            Button('发布商品').layoutWeight(1).height(40).fontSize(13)
+              .backgroundColor(Color.White).fontColor('#3D474F').onClick(() => {
+                this.onOpen(ROUTE_SHOPPING_MY_PRODUCTS, null);
+              })
           }.width('100%')
 
           Row({ space: 8 }) {
@@ -390,8 +396,6 @@ export struct ShoppingPage {
               })
           }
 
-          Text('商品、价格、库存与订单均来自真实接口；交易线下付款取货，不显示支付成功。')
-            .fontSize(10).fontColor('#8C949A').lineHeight(16).width('100%')
         }
         .width('100%')
         .padding({ left: PAGE_PADDING, right: PAGE_PADDING, top: 4, bottom: 96 })

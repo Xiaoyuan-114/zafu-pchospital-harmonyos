@@ -5,6 +5,9 @@
  * 页面只在展示时转成元，绝不在客户端做浮点金额运算。
  */
 export const PRODUCT_CATEGORY_SECONDHAND: string = 'SECONDHAND';
+export const PRODUCT_CATEGORY_COMPUTER: string = 'COMPUTER';
+export const PRODUCT_CATEGORY_COMPONENT: string = 'COMPONENT';
+export const PRODUCT_CATEGORY_PERIPHERAL: string = 'PERIPHERAL';
 export const PRODUCT_CATEGORY_CONSUMABLE: string = 'CONSUMABLE';
 export const PRODUCT_STATUS_ON_SALE: string = 'ON_SALE';
 export const PRODUCT_STATUS_DELISTED: string = 'DELISTED';
@@ -128,7 +131,10 @@ export interface ShoppingOrderDraft {
 }
 
 export function shoppingCategoryLabel(category: string): string {
-  if (category === PRODUCT_CATEGORY_SECONDHAND) return '二手配件';
+  if (category === PRODUCT_CATEGORY_SECONDHAND) return '二手闲置';
+  if (category === PRODUCT_CATEGORY_COMPUTER) return '整机';
+  if (category === PRODUCT_CATEGORY_COMPONENT) return '配件';
+  if (category === PRODUCT_CATEGORY_PERIPHERAL) return '外设';
   if (category === PRODUCT_CATEGORY_CONSUMABLE) return '维修耗材';
   return category;
 }
