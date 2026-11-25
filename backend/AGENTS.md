@@ -1,5 +1,7 @@
 # AGENTS.md
 
+2026-11-25：使用本机后端及独立课设数据库；共享后端部署说明为历史记录。当前目标和任务见根 README。
+
 先读本目录 README、docs/local-development.md 和 ../docs/development-plan.md；项目级规则见 ../AGENTS.md。前后端同仓，使用根 README 的模块 Issue 记录目标与进度，由团队自行认领和安排，无需固定周计划或另一位成员批准。
 
 - 只修改本课设实验仓库；原 Web、生产数据库与线上服务不得改动。
