@@ -7,6 +7,7 @@
 | 选购首页 | [截图](before-shop.png) | [截图](after-shop.png) |
 | 购物订单 | [截图](before-orders.png) | [截图](after-orders.png) |
 | 发布商品 | [截图](before-edit.png) | [截图](after-edit.png) |
+| 我发布的商品 | [截图](before-myproducts.png) | [截图](after-myproducts.png) |
 | 商品详情 | [截图](before-detail.png) | [截图](after-detail.png) |
 | 下单确认 | [历史截图（#84）](../issue-84/order-confirm-sheet.jpeg) | [截图](after-buy.png) |
 
