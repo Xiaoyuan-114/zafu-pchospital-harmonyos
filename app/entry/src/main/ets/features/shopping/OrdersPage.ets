@@ -297,7 +297,6 @@ export struct OrdersPage {
         DetailHeader({ title: this.title(), onBack: this.onBack, onRefresh: () => this.reload(), refresh: true })
         Scroll() {
           Column({ space: 12 }) {
-            DetailNotice({ text: '线下付款取货，本应用不承诺线上支付' })
             Row({ space: 8 }) {
               ForEach(FILTERS, (item: OrderFilter) => {
                 Text(item.label).fontSize(13)
@@ -308,6 +307,7 @@ export struct OrdersPage {
                   .onClick(() => this.selectFilter(item.value))
               }, (item: OrderFilter) => item.value)
             }.width('100%')
+            DetailNotice({ text: '线下付款取货' })
 
             if (this.loading) {
               Row() {
@@ -335,7 +335,8 @@ export struct OrdersPage {
           }
           .width('100%')
           .padding({ left: PAGE_PADDING, right: PAGE_PADDING, bottom: 24, top: GAP_SM })
-        }.layoutWeight(1).scrollBar(BarState.Off)
+          .alignItems(HorizontalAlign.Start)
+        }.layoutWeight(1).scrollBar(BarState.Off).align(Alignment.Top)
       }.width('100%').height('100%').backgroundColor(DETAIL_BACKGROUND)
 
       if (this.actionOrder !== null) {

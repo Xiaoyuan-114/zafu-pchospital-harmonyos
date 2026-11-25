@@ -6,6 +6,9 @@ import { ShoppingImage } from './ShoppingImage';
 import { ShoppingService } from './ShoppingService';
 import {
   PRODUCT_CATEGORY_CONSUMABLE,
+  PRODUCT_CATEGORY_COMPUTER,
+  PRODUCT_CATEGORY_COMPONENT,
+  PRODUCT_CATEGORY_PERIPHERAL,
   PRODUCT_CATEGORY_SECONDHAND,
   ShoppingGoodsParam,
   ShoppingImageView,
@@ -39,7 +42,7 @@ export struct ProductEditPage {
   @State priceText: string = '';
   @State conditionText: string = '';
   @State stockText: string = '1';
-  @State category: string = PRODUCT_CATEGORY_SECONDHAND;
+  @State category: string = PRODUCT_CATEGORY_COMPUTER;
   @State pickupNote: string = '';
   @State existingImages: ShoppingImageView[] = [];
   @State pendingImages: PickedImage[] = [];
@@ -137,14 +140,16 @@ export struct ProductEditPage {
       valid = false;
     }
     const condition: string = this.conditionText.trim();
-    if (this.category === PRODUCT_CATEGORY_SECONDHAND && condition.length === 0) {
+    if (this.category !== PRODUCT_CATEGORY_CONSUMABLE && condition.length === 0) {
       this.conditionError = '请填写成色，如 9成新';
       valid = false;
     } else if (condition.length > 32) {
       this.conditionError = '成色最多 32 字';
       valid = false;
     }
-    if (this.category !== PRODUCT_CATEGORY_SECONDHAND && this.category !== PRODUCT_CATEGORY_CONSUMABLE) {
+    if (this.category !== PRODUCT_CATEGORY_SECONDHAND && this.category !== PRODUCT_CATEGORY_COMPUTER &&
+      this.category !== PRODUCT_CATEGORY_COMPONENT && this.category !== PRODUCT_CATEGORY_PERIPHERAL &&
+      this.category !== PRODUCT_CATEGORY_CONSUMABLE) {
       this.categoryError = '请选择商品分类';
       valid = false;
     }
@@ -160,10 +165,10 @@ export struct ProductEditPage {
       valid = false;
     }
     const stock: number = Number(this.stockText.trim());
-    const minStock: number = this.category === PRODUCT_CATEGORY_SECONDHAND && this.productId === '' ? 1 : 0;
-    const maxStock: number = this.category === PRODUCT_CATEGORY_SECONDHAND ? 1 : 999;
+    const minStock: number = this.category !== PRODUCT_CATEGORY_CONSUMABLE && this.productId === '' ? 1 : 0;
+    const maxStock: number = this.category !== PRODUCT_CATEGORY_CONSUMABLE ? 1 : 999;
     if (this.stockText.trim().length === 0 || !Number.isInteger(stock) || stock < minStock || stock > maxStock) {
-      this.stockError = this.category === PRODUCT_CATEGORY_SECONDHAND
+      this.stockError = this.category !== PRODUCT_CATEGORY_CONSUMABLE
         ? (this.productId === '' ? '二手商品库存固定为 1' : '二手库存只能是 0 或 1')
         : '库存需为 0–999 的整数';
       valid = false;
@@ -452,7 +457,7 @@ export struct ProductEditPage {
             Column({ space: 6 }) {
               this.fieldLabel('分类')
               Row({ space: GAP_SM }) {
-                ForEach([PRODUCT_CATEGORY_SECONDHAND, PRODUCT_CATEGORY_CONSUMABLE], (item: string) => {
+                ForEach([PRODUCT_CATEGORY_COMPUTER, PRODUCT_CATEGORY_COMPONENT, PRODUCT_CATEGORY_PERIPHERAL, PRODUCT_CATEGORY_CONSUMABLE], (item: string) => {
                   Text(shoppingCategoryLabel(item)).fontSize(13)
                     .fontColor(this.category === item ? Color.White : '#4D5860')
                     .padding({ left: 14, right: 14, top: 8, bottom: 8 })
@@ -461,16 +466,16 @@ export struct ProductEditPage {
                     .onClick(() => {
                       if (this.productId === '' && !this.submitting) {
                         this.category = item;
-                        if (item === PRODUCT_CATEGORY_SECONDHAND) {
+                        if (item !== PRODUCT_CATEGORY_CONSUMABLE) {
                           this.stockText = '1';
                         }
                       }
                     })
                 }, (item: string) => item)
               }.width('100%')
-              if (this.productId !== '') {
-                Text('分类发布后不可修改').fontSize(10).fontColor('#8C949A').width('100%')
-              }
+              Text(this.productId !== '' ? '分类发布后不可修改' :
+                (this.category === PRODUCT_CATEGORY_CONSUMABLE ? '维修耗材由授权工作人员发布，可设置库存。' : '二手商品单件出售，库存固定为 1。'))
+                .fontSize(11).fontColor('#8C949A').width('100%')
               this.fieldError(this.categoryError)
             }.width('100%')
 

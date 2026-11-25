@@ -7,7 +7,7 @@
  */
 
 /** 商品分类：二手闲置 / 维修队耗材。 */
-export const ProductCategory = ["SECONDHAND", "CONSUMABLE"] as const;
+export const ProductCategory = ["SECONDHAND", "COMPUTER", "COMPONENT", "PERIPHERAL", "CONSUMABLE"] as const;
 export type ProductCategory = (typeof ProductCategory)[number];
 
 /** 商品状态：在售 / 已下架。下架只阻止新订单，不影响已存在的订单。 */
@@ -20,6 +20,9 @@ export type ShoppingOrderStatus = (typeof ShoppingOrderStatus)[number];
 
 export const productCategoryLabels: Readonly<Record<ProductCategory, string>> = {
   SECONDHAND: "二手闲置",
+  COMPUTER: "整机",
+  COMPONENT: "配件",
+  PERIPHERAL: "外设",
   CONSUMABLE: "耗材",
 };
 

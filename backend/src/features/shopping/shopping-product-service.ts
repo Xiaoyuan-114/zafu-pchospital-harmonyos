@@ -105,7 +105,7 @@ export const shoppingProductService = {
         data,
         stock: patch.stock,
         stockBase: patch.stockBase,
-        orderLocked: product.category === "SECONDHAND",
+        orderLocked: product.category !== "CONSUMABLE",
       });
       if (result.outcome === "order-locked")
         throw new AppError(

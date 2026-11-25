@@ -820,7 +820,7 @@ model Product {
   title        String         @db.VarChar(120)
   description  String         @db.Text
   priceCents   Int            @map("price_cents") @db.Int
-  /// SECONDHAND / CONSUMABLE
+  /// COMPUTER / COMPONENT / PERIPHERAL / CONSUMABLE；SECONDHAND 为旧分类
   category     String         @db.VarChar(32)
   /// 成色/规格的自由文本（如「九成新」「原装硒鼓」），由客户端展示，不做枚举。
   condition    String         @db.VarChar(32)

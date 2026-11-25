@@ -17,7 +17,7 @@
 | **首页** | [首页](docs/reference/my-huawei/home-navigation.jpg) | 大标题、搜索、主视觉、快捷服务与液态玻璃底栏，聚合真实服务/活动/选购入口 |
 | **活动** | [花粉](docs/reference/my-huawei/community-huafen-feed.jpg)、[信息流](docs/reference/my-huawei/community-circle-detail-feed.jpg)、[帖子详情](docs/reference/my-huawei/community-event-post-detail.jpg) | 组织活动与论坛，已有报名和用户发帖/评论；关注、圈子、积分和打卡待讨论实现 |
 | **服务／工作台** | [服务](docs/reference/my-huawei/service-my-products-repair-entry.jpg)、[检测与帮助](docs/reference/my-huawei/service-diagnostics-help.jpg) | **知识库迁入服务**，保留 AI 问诊、指南/案例/搜索、报修与进度；工作人员保留处理、备案、审核与现场能力 |
-| **选购** | [选购](docs/reference/my-huawei/shopping-category-navigation.jpg)、[订单筛选与空态](docs/reference/my-huawei/shopping-orders-empty-state.jpg) | **恢复选购语义**，提供二手商品、硅脂等维修耗材、真实下单和买卖双方订单管理 |
+| **选购** | [选购](docs/reference/my-huawei/shopping-category-navigation.jpg)、[订单筛选与空态](docs/reference/my-huawei/shopping-orders-empty-state.jpg) | **恢复选购语义**，提供整机、配件、外设及维修耗材、真实下单和买卖双方订单管理 |
 | **我的** | [我的](docs/reference/my-huawei/my-account-service-record-entry.jpg)、[账号资料](docs/reference/my-huawei/account-profile-sheet.jpg) | 原资料/报修/报名/收藏/消息，加购物订单、本人商品、卖家订单和我的帖子入口 |
 
 五栏导航、知识迁入服务以及选购/论坛基础功能已合入。全部 16 张参考图见 [图片索引](docs/reference/my-huawei/README.md)。商品详情等缺失参考图的页面应补采截图或记录设计依据。
@@ -109,6 +109,8 @@ corepack pnpm accounts:prepare
 corepack pnpm knowledge:index  # 本地生成知识索引；无向量配置时使用关键词
 corepack pnpm dev --port 13080
 ```
+
+本机后端启动、准备测试账号后，可在 `backend/` 执行 `node tools/shopping-demo.mjs` 创建四类课设样本和示意图片；重复执行复用现有样本。默认使用本地工作人员测试账号，可通过 `SHOPPING_DEMO_QQ` 和 `SHOPPING_DEMO_PASSWORD` 指定账号。
 
 健康接口 `http://localhost:13080/api/v1/health`；App 登录页“连接设置”可切换 API。模拟器访问本机通常使用 `http://10.0.2.2:13080`，手机使用电脑局域网 IP；设备上的 localhost 指向设备自身。
 

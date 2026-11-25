@@ -303,3 +303,14 @@ test("权限策略：耗材维护看权限码，非本人 403，下架商品 409
     assertCanReadOrder(actor([], "buyer-1"), { buyerId: "buyer-1", sellerId: "seller-1" }),
   );
 });
+
+test("四类商品按交易类型校验库存、权限与筛选", () => {
+  for (const category of ["COMPUTER", "COMPONENT", "PERIPHERAL"]) {
+    assert.doesNotThrow(() => validateProductDraft(normalizeProductDraft({ ...validDraft, category })));
+    assert.throws(() => validateProductDraft(normalizeProductDraft({ ...validDraft, category, stock: 2 })));
+    assert.doesNotThrow(() => assertCanCreateProduct(actor(), category));
+    assert.equal(productListQuery(new URLSearchParams({ category })).category, category);
+  }
+  assert.throws(() => assertCanCreateProduct(actor(), "CONSUMABLE"));
+  assert.equal(productListQuery(new URLSearchParams({ category: "CONSUMABLE" })).category, "CONSUMABLE");
+});
