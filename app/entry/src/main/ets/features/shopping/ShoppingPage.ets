@@ -185,15 +185,15 @@ export struct ShoppingPage {
   }
 
   @Builder
-  bannerSlide(title: string, subtitle: string, note: string, background: string) {
+  bannerSlide() {
     Row({ space: 12 }) {
     Column({ space: 8 }) {
-      Text(title).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#14202A').maxLines(1)
+      Text(this.bannerTitle).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#14202A').maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(subtitle).fontSize(13).fontColor('#33414D').maxLines(2).lineHeight(19)
+      Text(this.bannerSubtitle).fontSize(13).fontColor('#33414D').maxLines(2).lineHeight(19)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Row({ space: 6 }) {
-        Text(note).fontSize(11).fontColor('#5D6A75')
+        Text(this.bannerNote).fontSize(11).fontColor('#5D6A75')
       }
     }
     .layoutWeight(1)
@@ -206,7 +206,7 @@ export struct ShoppingPage {
     .width('100%')
     .height(168)
     .padding(18)
-    .backgroundColor(background)
+    .backgroundColor('#FFE6C7')
     .borderRadius(CARD_RADIUS)
   }
 
@@ -299,26 +299,13 @@ export struct ShoppingPage {
           .backgroundColor(Color.White)
           .borderRadius(14)
 
-          // 16:9 横幅：有真实商品时才挂 Swiper，避免 Swiper 缓存空态里的首屏内容。
-          if (this.products.length === 0) {
-            this.bannerSlide('选购', '发现身边的电脑好物',
-              '暂无在售商品', '#FFE6C7')
-          } else {
-            Swiper() {
-              this.bannerSlide(this.bannerTitle, this.bannerSubtitle, this.bannerNote, '#FFE6C7')
-              this.bannerSlide(
-                `${this.total} 件在售`,
-                '二手电脑配件与维修耗材，线下付款取货；本应用不承诺线上支付。',
-                this.appliedCategory === '' ? '全部分类' : `当前筛选：${shoppingCategoryLabel(this.appliedCategory)}`,
-                '#DCEBFA'
-              )
-            }
-            .width('100%')
-            .height(168)
-            .autoPlay(false)
-            .indicator(true)
-            .loop(false)
-          }
+          // 横幅与当前列表使用同一份结果；点击进入当前商品详情。
+          Stack() {
+            this.bannerSlide()
+          }.onClick(() => {
+              const item: ShoppingProductView | null = this.newest();
+              if (item !== null) this.openProduct(item);
+            })
 
           Row({ space: 4 }) {
             this.shortcut($r('app.media.ref_laptop_hero'), '整机', '', PRODUCT_CATEGORY_COMPUTER)
