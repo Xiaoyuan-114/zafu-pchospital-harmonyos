@@ -23,6 +23,7 @@ export struct WorkbenchSummary {
   @State dashboard: Dashboard | null = null;
   @State loading: boolean = false;
   @State errorText: string = '';
+  @State memberRequired: boolean = false;
   private generation: number = 0;
 
   aboutToAppear(): void { this.load(); }
@@ -33,6 +34,7 @@ export struct WorkbenchSummary {
     const generation = ++this.generation;
     this.loading = true;
     this.errorText = '';
+    this.memberRequired = false;
     try {
       const token = await SessionStore.readToken();
       if (token === '') throw new ApiRequestError('UNAUTHENTICATED', '请先登录', 401, '');
@@ -42,6 +44,11 @@ export struct WorkbenchSummary {
       if (generation !== this.generation) return;
       this.dashboard = null;
       if (error instanceof ApiRequestError && isSessionExpiredCode(error.code)) { this.onSessionExpired(); return; }
+      if (error instanceof ApiRequestError && error.code === 'MEMBER_REQUIRED') {
+        this.memberRequired = true;
+        this.errorText = '当前账号没有成员档案，维修摘要不可用';
+        return;
+      }
       this.errorText = error instanceof ApiRequestError
         ? (error.code === 'NETWORK_ERROR' || error.code === 'UNEXPECTED_RESPONSE'
           ? '工作摘要加载失败，请检查连接' : error.message)
@@ -105,12 +112,17 @@ export struct WorkbenchSummary {
         LoadingPanel({ text: '正在读取工作摘要…' })
       }
       if (this.errorText !== '') {
-        Row({ space: 10 }) {
-          Text(this.errorText).fontSize(12).lineHeight(18).fontColor('#9B3D35').layoutWeight(1)
-          Button('重试').fontSize(12).width(64).height(34)
-            .fontColor('#286DA6').backgroundColor(Color.White)
-            .onClick(() => { this.load(); })
-        }.width('100%').padding(12).backgroundColor('#FFF5F2').borderRadius(14)
+        if (this.memberRequired) {
+          Text(this.errorText).fontSize(12).lineHeight(18).fontColor('#52616B')
+            .width('100%').padding(12).backgroundColor('#F3F7F9').borderRadius(14)
+        } else {
+          Row({ space: 10 }) {
+            Text(this.errorText).fontSize(12).lineHeight(18).fontColor('#9B3D35').layoutWeight(1)
+            Button('重试').fontSize(12).width(64).height(34)
+              .fontColor('#286DA6').backgroundColor(Color.White)
+              .onClick(() => { this.load(); })
+          }.width('100%').padding(12).backgroundColor('#FFF5F2').borderRadius(14)
+        }
       }
       if (this.dashboard !== null) {
         Column({ space: 9 }) {

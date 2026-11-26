@@ -109,7 +109,7 @@ export struct ServicePage {
     }
     if (this.permissions.includes('activity:staff')) entries.push({ title: '成员活动', note: '出勤与现场接待', icon: $r('app.media.ref_activity'), hue: 'purple', route: ROUTE_STAFF_ACTIVITIES, ready: true });
     entries.push({ title: '知识问答', note: '有出处的 AI 咨询', icon: $r('app.media.ref_shield'), hue: 'blue', route: ROUTE_KNOWLEDGE, ready: true });
-    if (!this.permissions.includes('activity:staff')) {
+    if (!this.permissions.includes('activity:staff') || this.permissions.includes('activity:admin')) {
       entries.push({ title: '典型案例库', note: '已发布的典型案例', icon: $r('app.media.ref_system'), hue: 'gold', route: ROUTE_CASE_LIBRARY, ready: true });
     }
     if (this.permissions.includes('activity:admin')) entries.push({ title: '管理', note: '活动与报名管理', icon: $r('app.media.ref_grid'), hue: 'blue', route: ROUTE_MANAGEMENT, ready: true });
