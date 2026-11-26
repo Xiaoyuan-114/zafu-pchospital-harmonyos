@@ -249,8 +249,8 @@ export struct LoginPage {
           .onClick(() => { this.showSettings = !this.showSettings; })
         if (this.showSettings) {
           Column({ space: GAP_SM }) {
-            this.fieldLabel('开发连接地址（默认共享实验服务器）')
-            TextInput({ text: $$this.serverUrl, placeholder: 'https://harmony-api.pczafu.cn' })
+            this.fieldLabel('开发连接地址（默认模拟器本机后端）')
+            TextInput({ text: $$this.serverUrl, placeholder: 'http://10.0.2.2:13080' })
               .height(CONTROL_HEIGHT)
               .backgroundColor($r('app.color.field_bg'))
               .borderRadius(CONTROL_RADIUS)

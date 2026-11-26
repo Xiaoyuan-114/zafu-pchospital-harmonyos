@@ -1,8 +1,8 @@
 # 课设实验后端
 
-同仓库的 `backend/` 提供 Next.js API 与 Prisma/MySQL 数据层。App 开发默认使用共享后端 **https://harmony-api.pczafu.cn**，无需本机启动服务或连接数据库；下方本地步骤用于修改接口/数据库结构。
+同仓库的 `backend/` 提供 Next.js API 与 Prisma/MySQL 数据层。项目开发与汇报使用本机后端及独立课设数据库；App 在登录页「连接设置」填写本机 API 地址。
 
-服务器采用 Node + MySQL + systemd + Nginx HTTPS，不使用 Docker；仅接收本机 WSL/Linux 构建产物，不在服务器 install/build。见 [共享部署与维护](docs/shared-deployment.md)和 [游客访问契约](docs/guest-access.md)。
+本地启动使用 Node 和 MySQL，不使用 Docker。游客与登录续接规则见 [游客访问契约](docs/guest-access.md)；其中旧共享地址描述属于历史配置。
 
 ## 新人快速开始
 
