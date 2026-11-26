@@ -33,6 +33,7 @@ export struct WorkbenchSummary {
   private async load(): Promise<void> {
     const generation = ++this.generation;
     this.loading = true;
+    this.dashboard = null;
     this.errorText = '';
     this.memberRequired = false;
     try {
