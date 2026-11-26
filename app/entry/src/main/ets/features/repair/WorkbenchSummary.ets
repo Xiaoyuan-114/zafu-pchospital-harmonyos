@@ -2,7 +2,7 @@ import { ApiClient, ApiRequestError, isSessionExpiredCode } from '../../core/net
 import { ApiConfig } from '../../core/network/ApiConfig';
 import { SessionStore } from '../../core/auth/SessionStore';
 import { ROUTE_FAVORITES, ROUTE_MESSAGES, ROUTE_REPAIR_RECORDS, ROUTE_STAFF_RECORD } from '../../core/ui/Routes';
-import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
+import { LoadingPanel } from '../../core/ui/StatePanel';
 import { StaffRecordParam, repairRecordStatusLabel } from './StaffRepairContract';
 import { RecordListParam } from './RepairRecordsPage';
 
@@ -42,7 +42,10 @@ export struct WorkbenchSummary {
       if (generation !== this.generation) return;
       this.dashboard = null;
       if (error instanceof ApiRequestError && isSessionExpiredCode(error.code)) { this.onSessionExpired(); return; }
-      this.errorText = error instanceof ApiRequestError ? error.message : '工作摘要加载失败';
+      this.errorText = error instanceof ApiRequestError
+        ? (error.code === 'NETWORK_ERROR' || error.code === 'UNEXPECTED_RESPONSE'
+          ? '工作摘要加载失败，请检查连接' : error.message)
+        : '工作摘要加载失败';
     } finally {
       if (generation === this.generation) this.loading = false;
     }
@@ -102,7 +105,12 @@ export struct WorkbenchSummary {
         LoadingPanel({ text: '正在读取工作摘要…' })
       }
       if (this.errorText !== '') {
-        ErrorPanel({ message: this.errorText, onRetry: (): void => { this.load(); } })
+        Row({ space: 10 }) {
+          Text(this.errorText).fontSize(12).lineHeight(18).fontColor('#9B3D35').layoutWeight(1)
+          Button('重试').fontSize(12).width(64).height(34)
+            .fontColor('#286DA6').backgroundColor(Color.White)
+            .onClick(() => { this.load(); })
+        }.width('100%').padding(12).backgroundColor('#FFF5F2').borderRadius(14)
       }
       if (this.dashboard !== null) {
         Column({ space: 9 }) {
