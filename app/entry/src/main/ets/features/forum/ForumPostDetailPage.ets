@@ -1,3 +1,4 @@
+import { FollowButton } from './FollowButton';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { ApiPage } from '../../core/network/ApiContract';
@@ -444,6 +445,14 @@ export struct ForumPostDetailPage {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
         this.detailHeader()
+        if (this.detail !== null) {
+          Row({ space: 28 }) {
+            Button('正文').fontColor(FORUM_ACCENT).backgroundColor(Color.Transparent)
+              .onClick(() => { this.detailScroller.scrollTo({ xOffset: 0, yOffset: 0 }); })
+            Button('评论 ' + this.detail!.commentCount).fontColor(FORUM_ACCENT).backgroundColor(Color.Transparent)
+              .onClick(() => { this.showComments(); })
+          }.width('100%').padding({ left: 16, right: 16 }).backgroundColor(FORUM_SURFACE)
+        }
         if (this.loading && this.detail === null) {
           LoadingPanel({ text: '正在加载帖子…' }).layoutWeight(1)
         } else if (this.errorText !== '' && this.detail === null) {
@@ -464,6 +473,8 @@ export struct ForumPostDetailPage {
                     Text(this.detail!.author.displayName).fontSize(14).fontWeight(FontWeight.Medium).fontColor(FORUM_INK)
                     Text(detailTimeText(this.detail!.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
                   }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+                  FollowButton({ author: this.detail!.author, authenticated: this.authenticated, onLogin: this.onLogin,
+                    onChanged: this.onChanged })
                 }.width('100%')
                 Text(this.detail!.body).fontSize(16).lineHeight(27).fontColor(FORUM_INK).width('100%')
                 if (this.detail!.images.length > 0) {

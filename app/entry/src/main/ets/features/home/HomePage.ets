@@ -1,3 +1,9 @@
+import { ForumFollowingPage } from '../forum/ForumFollowingPage';
+import { ForumCirclePage } from '../forum/ForumCirclePage';
+import { ForumCircleAdminPage } from '../forum/ForumCircleAdminPage';
+import { CommunityCheckInPage } from '../forum/CommunityCheckInPage';
+import { CommunityPointsPage } from '../forum/CommunityPointsPage';
+import { CircleParam } from '../forum/CommunityService';
 import { ActivityDetailPage } from '../activity/ActivityDetailPage';
 import { ActivityLookupPage } from '../activity/ActivityLookupPage';
 import { MyRegistrationsPage } from '../activity/MyRegistrationsPage';
@@ -198,7 +204,7 @@ export struct HomePage {
   @State currentTab: number = TAB_INDEX_HOME;
   @State activityRevision: number = 0;
   @State activityListRevision: number = 0;
-  @State forumChannel: string = '活动';
+  @State forumChannel: string = '推荐';
   @State forumRefreshVersion: number = 0;
   @State recordsRevision: number = 0;
   @State workbenchRevision: number = 0;
@@ -233,6 +239,7 @@ export struct HomePage {
   private async expireSession(): Promise<void> {
     if (this.expiring || this.sessionTransition) return;
     this.expiring = true;
+    if (this.forumChannel === '关注') this.forumChannel = '推荐';
     this.admittedTab = -1;
     this.pathStack.clear();
     this.currentTab = TAB_INDEX_HOME;
@@ -320,6 +327,7 @@ export struct HomePage {
     if (intent.tab >= 0) {
       this.admittedTab = intent.tab;
       this.currentTab = intent.tab;
+      if (intent.forumChannel === '关注') this.forumChannel = '关注';
       this.tabController.changeIndex(intent.tab);
       return;
     }
@@ -358,7 +366,7 @@ export struct HomePage {
     // 知识目录（#83 迁入服务）刻意**不**在这个放行名单里：先把账号送到改密页。
     // 注意这里没有写 `loginIntent`，所以改密成功后不会自动打开知识目录，
     // 而是回到 tab 根页（安全行为：半受限账号不直接进入知识页撞 403）。
-    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
+    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE && route !== 'forum-circle' && route !== 'community-checkin') {
       this.openPasswordChange(true);
       return;
     }
@@ -366,7 +374,7 @@ export struct HomePage {
     // `GUEST_KNOWLEDGE_ROUTE` 是 `ROUTE_KNOWLEDGE_LIBRARY` 的字面量镜像，原因见该常量注释。
     if (!this.authenticated && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH
       && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== GUEST_KNOWLEDGE_ROUTE
-      && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
+      && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE && route !== 'forum-circle' && route !== 'community-checkin') {
       const intent = new LoginIntent();
       intent.route = route;
       intent.param = param;
@@ -384,6 +392,7 @@ export struct HomePage {
   private async logoutToGuest(): Promise<void> {
     if (this.sessionTransition) return;
     this.sessionTransition = true;
+    if (this.forumChannel === '关注') this.forumChannel = '推荐';
     this.admittedTab = -1;
     this.loginIntent = new LoginIntent();
     this.pathStack.clear();
@@ -452,8 +461,22 @@ export struct HomePage {
           onSessionExpired: (): void => { this.expireSession(); },
           onBusyChange: (busy: boolean): void => { this.passwordChangeBusy = busy; }
         });
+      } else if (name === 'forum-following') {
+        ForumFollowingPage({ onChanged: (): void => { this.forumRefreshVersion += 1; }, onSessionExpired: (): void => { this.expireSession(); } });
+      } else if (name === 'forum-circle') {
+        ForumCirclePage({ param: param as CircleParam, authenticated: this.authenticated, refreshVersion: this.forumRefreshVersion,
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+          onLogin: (): void => { const intent = new LoginIntent(); intent.route = 'forum-circle'; intent.param = param; this.requestLogin(intent); }, onChanged: (): void => { this.forumRefreshVersion += 1; } });
+      } else if (name === 'forum-circle-admin') {
+        ForumCircleAdminPage({ param: (param as CircleParam | null) ?? { circleId: '' },
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); }, onChanged: (): void => { this.forumRefreshVersion += 1; } });
+      } else if (name === 'community-checkin') {
+        CommunityCheckInPage({ authenticated: this.authenticated, onLogin: (): void => { const intent = new LoginIntent(); intent.route = 'community-checkin'; this.requestLogin(intent); },
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); } });
+      } else if (name === 'community-points') {
+        CommunityPointsPage({ onSessionExpired: (): void => { this.expireSession(); } });
       } else if (name === ROUTE_FORUM_COMPOSE) {
-        ForumComposePage({
+        ForumComposePage({ param: (param as CircleParam | null) ?? { circleId: '' },
           onBack: (): void => { this.pathStack.pop(); },
           onRegisterBackHandler: (handler: () => boolean): void => { this.forumComposeBackHandler = handler; },
           onSaved: (postId: string): void => {
@@ -805,7 +828,7 @@ export struct HomePage {
               onActivities: (): void => { this.selectNavigation(1); },
               onShopping: (): void => { this.selectNavigation(3); },
               onForum: (): void => {
-                this.forumChannel = '论坛';
+                this.forumChannel = '推荐';
                 this.forumRefreshVersion += 1;
                 this.selectNavigation(1);
               },
@@ -824,7 +847,16 @@ export struct HomePage {
 
           TabContent() {
             ActivityPage({
-              channel: $forumChannel,
+              channel: $forumChannel, authenticated: this.authenticated && !this.mustChangePassword,
+              canManage: this.permissions.includes('forum.circle:manage'),
+              onRequireLogin: (): void => { this.requestLogin(new LoginIntent()); },
+              onRequireFollowLogin: (): void => {
+                const intent = new LoginIntent();
+                intent.tab = 1;
+                intent.forumChannel = '关注';
+                this.requestLogin(intent);
+              },
+              onChanged: (): void => { this.forumRefreshVersion += 1; },
               activityRefreshVersion: this.activityListRevision,
               forumSearching: $forumSearching,
               forumRefreshVersion: this.forumRefreshVersion,

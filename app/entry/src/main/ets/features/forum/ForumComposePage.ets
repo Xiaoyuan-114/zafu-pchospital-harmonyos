@@ -1,3 +1,4 @@
+import { CircleParam, CircleView, CommunityService } from './CommunityService';
 import { image } from '@kit.ImageKit';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { SessionService } from '../../core/auth/SessionService';
@@ -76,6 +77,10 @@ struct PendingForumImageView {
 /** 发布与图片恢复：savedId 之后只续传，绝不重复建帖。 */
 @Component
 export struct ForumComposePage {
+  param: CircleParam = { circleId: '' };
+  @State circles: CircleView[] = [];
+  @State circlesError: string = '';
+  @State circleId: string = '';
   onSaved: (postId: string) => void = () => {};
   onSessionExpired: () => void = () => {};
   onBack: () => void = () => {};
@@ -99,6 +104,8 @@ export struct ForumComposePage {
   private previousKeyboardMode: KeyboardAvoidMode = 0;
 
   aboutToAppear(): void {
+    this.circleId = this.param.circleId;
+    this.loadCircles();
     this.onRegisterBackHandler((): boolean => this.requestBack());
   }
 
@@ -106,6 +113,32 @@ export struct ForumComposePage {
     this.restoreKeyboardMode();
     this.onRegisterBackHandler((): boolean => false);
     this.disposed = true;
+  }
+
+  private circleOptions(): SelectOption[] {
+    const options: SelectOption[] = [{ value: '不选择圈子' }];
+    this.circles.filter((item: CircleView) => !item.archived).forEach((item: CircleView) => { options.push({ value: item.name }); });
+    return options;
+  }
+
+  private async loadCircles(): Promise<void> {
+    const stamp: string = SessionService.sessionStamp();
+    this.circlesError = '';
+    try {
+      let page: number = 1;
+      let totalPages: number = 1;
+      let circles: CircleView[] = [];
+      while (page <= totalPages) {
+        const result = await CommunityService.circles(page, true);
+        if (this.disposed || stamp !== SessionService.sessionStamp()) return;
+        circles = circles.concat(result.items);
+        totalPages = result.pagination.totalPages;
+        page += 1;
+      }
+      this.circles = circles;
+    } catch (error) {
+      if (!this.disposed && stamp === SessionService.sessionStamp()) this.circlesError = (error as ApiRequestError).message || '读取圈子失败';
+    }
   }
 
   private resizeForKeyboard(): void {
@@ -197,6 +230,10 @@ export struct ForumComposePage {
   private validate(): boolean {
     const title: string = this.title.trim();
     const body: string = this.body.trim();
+    if (this.circleId !== '' && !this.circles.some((item: CircleView) => item.id === this.circleId && !item.archived)) {
+      this.errorText = '所选圈子不可用，请重新选择或刷新圈子';
+      return false;
+    }
     if (title === '' || title.length > 120) {
       this.errorText = '标题需为 1–120 字';
       return false;
@@ -227,6 +264,7 @@ export struct ForumComposePage {
           body: this.body.trim(),
           createRequestKey: this.createRequestKey
         };
+        if (this.circleId !== '') draft.circleId = this.circleId;
         const created: ForumPostView = await ForumService.createPost(draft);
         if (this.disposed || SessionService.sessionStamp() !== sessionStamp) return;
         id = created.id;
@@ -334,6 +372,15 @@ export struct ForumComposePage {
         Scroll() {
           Column({ space: 16 }) {
             Column({ space: 14 }) {
+              Text('选择圈子（可选）').fontSize(13).fontColor(FORUM_SECONDARY).width('100%')
+              Select(this.circleOptions())
+                .value(this.circles.find((item: CircleView) => item.id === this.circleId)?.name ?? (this.circleId === '' ? '不选择圈子' : '正在读取所选圈子'))
+                .enabled(this.savedId === '' && !this.submitting)
+                .onSelect((index: number) => { const available = this.circles.filter((item: CircleView) => !item.archived); this.circleId = index === 0 ? '' : available[index - 1].id; })
+              if (this.circlesError !== '') {
+                Text(this.circlesError).fontSize(13).fontColor('#B04438')
+                Button('重新加载圈子').onClick(() => { this.loadCircles(); })
+              }
               Text('选择分类').fontSize(13).fontColor(FORUM_SECONDARY).width('100%')
               Row({ space: 8 }) {
                 ForEach([FORUM_CATEGORY_GENERAL, FORUM_CATEGORY_EXPERIENCE, FORUM_CATEGORY_QUESTION], (name: string) => {

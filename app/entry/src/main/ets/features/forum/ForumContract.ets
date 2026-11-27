@@ -6,6 +6,8 @@ export const FORUM_CATEGORY_QUESTION: string = 'QUESTION';
 export interface ForumAuthorView {
   id: string;
   displayName: string;
+  following?: boolean;
+  canFollow?: boolean;
 }
 
 export interface ForumImageView {
@@ -20,7 +22,10 @@ export interface ForumPostActions {
   canComment: boolean;
 }
 
+export interface ForumCircleSummary { id: string; name: string; archived: boolean; }
+
 export interface ForumPostView {
+  circle?: ForumCircleSummary | null;
   id: string;
   category: string;
   title: string;
@@ -47,6 +52,7 @@ export interface ForumCommentView {
 }
 
 export interface ForumPostDraft {
+  circleId?: string;
   category: string;
   title: string;
   body: string;
