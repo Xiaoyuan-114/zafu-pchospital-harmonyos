@@ -101,6 +101,17 @@ export interface DeviceFocusParam {
 }
 
 /**
+ * 客户：检测与帮助（Issue #102）。
+ *
+ * 症状问答是「按描述归类」，不是硬件检测。带 `deviceId` 进入时，
+ * 结果页可以直接跳到这台设备的权益或报修；不带也能单独问诊。
+ */
+export const ROUTE_DIAGNOSTIC: string = 'diagnostic';
+export interface DiagnosticFocusParam {
+  deviceId: string;
+}
+
+/**
  * 子页标题的唯一来源：HomePage 的 navDestination 统一用 NavDestination 包裹各页面，
  * 标题从这里取，保证所有子页的系统标题栏与返回按钮样式一致（Issue #41）。
  */
@@ -174,6 +185,9 @@ export function routeTitle(name: string): string {
   }
   if (name === ROUTE_DEVICE_DETAIL) {
     return '设备与权益';
+  }
+  if (name === ROUTE_DIAGNOSTIC) {
+    return '检测与帮助';
   }
   return name;
 }

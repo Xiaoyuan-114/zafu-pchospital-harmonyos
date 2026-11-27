@@ -102,14 +102,13 @@ export interface DeviceCreateRequest {
   purchaseOn?: string;
 }
 
-/** PATCH /api/v1/customer/devices/{id} 的请求体：全部可选，只传要改的字段。 */
-export interface DeviceUpdateRequest {
-  label?: string;
-  brand?: string;
-  model?: string;
-  serialNumber?: string;
-  purchaseOn?: string;
-}
+/**
+ * PATCH /api/v1/customer/devices/{id} 的请求体。
+ *
+ * 服务端只改传过来的字段；本端表单每次都带全部字段，所以直接复用
+ * `DeviceCreateRequest`——ArkTS 禁止结构化类型，拆成两个 interface 传不过去。
+ */
+export type DeviceUpdateRequest = DeviceCreateRequest;
 
 /**
  * 客户端侧字段上限：与后端 device-validation.ts 对齐，用于提交前即时提示。

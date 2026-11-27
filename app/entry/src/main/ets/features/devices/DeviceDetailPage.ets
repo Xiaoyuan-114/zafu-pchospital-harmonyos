@@ -16,7 +16,7 @@ import {
   GAP_SM,
   GAP_XS,
 } from '../../core/ui/Theme';
-import { RepairOrderFocusParam, ROUTE_REPAIR_ORDERS } from '../../core/ui/Routes';
+import { DiagnosticFocusParam, RepairOrderFocusParam, ROUTE_DIAGNOSTIC, ROUTE_REPAIR_ORDERS } from '../../core/ui/Routes';
 import { formatOrderTime, repairOrderStatusLabel } from '../repair/RepairOrderContract';
 import {
   BENEFIT_STATUS_EXPIRED,
@@ -52,6 +52,12 @@ import { DeviceService } from './DeviceService';
 export struct DeviceDetailPage {
   /** 设备 ID：由路由参数传入。 */
   @Prop deviceId: string = '';
+  /**
+   * 上级的设备变更计数：报修单提交、设备改名或解绑后递增，这里跟着重拉详情。
+   * 没有它会出这种问题——从详情点「报修这台设备」提交后返回，「关联报修」还写着
+   * 「这台设备还没有报修记录」，必须手动点刷新才对。
+   */
+  @Prop @Watch('onDeviceRevisionChanged') deviceRefreshVersion: number = 0;
   onBack: () => void = () => {};
   onOpen: (route: string, param: Object | null) => void = () => {};
   onSessionExpired: () => void = () => {};
@@ -93,6 +99,18 @@ export struct DeviceDetailPage {
       return true;
     }
     return false;
+  }
+
+  /**
+   * 设备变更计数变化：重拉详情。
+   * 编辑表单打开时不重拉——用户正在填的内容会被一次后台刷新顶掉；
+   * 解绑请求进行中也不重拉，那个流程自己会回列表。
+   */
+  private onDeviceRevisionChanged(): void {
+    if (this.editing || this.removing) {
+      return;
+    }
+    this.fetch();
   }
 
   private async fetch(): Promise<void> {
@@ -216,6 +234,15 @@ export struct DeviceDetailPage {
   private repairThisDevice(): void {
     const param: RepairOrderFocusParam = { orderId: '', deviceId: this.deviceId };
     this.onOpen(ROUTE_REPAIR_ORDERS, param);
+  }
+
+  /**
+   * 带着设备去问诊：结果页可以直接跳回本页的权益，或直接提交报修。
+   * 参数就是设备 ID 字符串（见 HomePage 的 ROUTE_DIAGNOSTIC 分支）。
+   */
+  private diagnoseThisDevice(): void {
+    const param: DiagnosticFocusParam = { deviceId: this.deviceId };
+    this.onOpen(ROUTE_DIAGNOSTIC, param);
   }
 
   /** 权益状态行：「有效 · 还有 335 天」/「已过保修期 · 已过期 70 天」/「已作废」。 */
@@ -408,6 +435,17 @@ export struct DeviceDetailPage {
         .enabled(!this.removing)
         .onClick(() => {
           this.repairThisDevice();
+        })
+      Button('先测一下是什么问题')
+        .width('100%')
+        .height(CONTROL_HEIGHT_MD + 4)
+        .fontSize(FONT_SUBTITLE)
+        .fontColor($r('app.color.brand'))
+        .backgroundColor($r('app.color.brand_soft'))
+        .borderRadius(24)
+        .enabled(!this.removing)
+        .onClick(() => {
+          this.diagnoseThisDevice();
         })
       Row({ space: CARD_GAP }) {
         Button('编辑信息')

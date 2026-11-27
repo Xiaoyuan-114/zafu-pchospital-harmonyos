@@ -37,7 +37,7 @@
 | 顺序 | Issue | 任务书与依赖 |
 | --- | --- | --- |
 | 01 | [#101 商城页面还原与交互打磨](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/101) | 包括购物订单页、选购、商品详情与买卖流程 |
-| 02 | [#102 设备、权益查询与检测流程](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/102) | 具体数据、权限和检测方式待讨论 |
+| 02 | [#102 设备、权益查询与检测流程](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/102) | 已实现：设备独立绑定、权益由门店登记（客户只读）、症状问答式检测。见 [设备与权益接口](backend/docs/devices-benefits-api.md)、[验证记录](docs/verification/issue-102.md) |
 | 03 | [#103 关注、圈子、积分与打卡](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/103) | 在现有社区与活动基础上补齐，具体规则待讨论 |
 | 04 | [#42 统一还原打磨、联调与课程演示](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/42) | [原任务书](docs/tasks/current-goals/04-polish-demo.md)；汇总跨模块验收及汇报材料 |
 
@@ -50,7 +50,7 @@
 | 范围 | 当前情况 |
 | --- | --- |
 | 原生底座与账号 | 已有游客先浏览、按需登录/注册、会话与双角色入口，保留现有改密/权限规则 |
-| 维修服务与知识 | 已有报修、进度、工作人员处理、备案审核、指南/案例阅读与搜索、AI 问答；知识已迁入服务。设备权益及检测流程见 #102 |
+| 维修服务与知识 | 已有报修、进度、工作人员处理、备案审核、指南/案例阅读与搜索、AI 问答；知识已迁入服务。**#102 补齐**：设备独立绑定、保修权益（门店登记）、症状问答式检测，报修单可关联设备 |
 | 个人功能 | 已有资料、收藏、消息、购物/卖家订单、本人商品和帖子入口；客户维修记录仍显示未接入 |
 | 活动与论坛 | 已有活动报名、本人状态、现场管理、图文发帖和评论；关注、圈子、积分与打卡见 #103 |
 | 选购交易 | 已有商品发布、浏览、线下下单和买卖双方订单；商城页面继续按 #101 打磨 |
@@ -129,4 +129,4 @@ App 只访问 API，原生通道使用 `X-Client-Type: native` 和 Bearer，会�
 - [开发方案与历史基线](docs/development-plan.md)、[旧 Web 迁移任务](docs/tasks/web-migration/README.md)（保留历史，冲突处以当前目标为准）
 - [参考图索引](docs/reference/my-huawei/README.md)、[项目规则](AGENTS.md)
 - [后端快速开始](backend/README.md)、[本地配置](backend/docs/local-development.md)、[知识配置](backend/docs/knowledge-ai.md)
-- [原生鉴权](backend/docs/native-client-api.md)、[维修接口](backend/docs/native-repairs-api.md)、[活动接口](backend/docs/native-activities-api.md)、[知识浏览接口](backend/docs/knowledge-browse-api.md)、[设备与权益接口](backend/docs/devices-benefits-api.md)
+- [原生鉴权](backend/docs/native-client-api.md)、[维修接口](backend/docs/native-repairs-api.md)、[活动接口](backend/docs/native-activities-api.md)、[知识浏览接口](backend/docs/knowledge-browse-api.md)、[设备、权益与检测接口](backend/docs/devices-benefits-api.md)

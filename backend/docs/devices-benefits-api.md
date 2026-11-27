@@ -1,6 +1,6 @@
-# 设备与保修权益接口（Issue #102）
+# 设备、保修权益与检测接口（Issue #102）
 
-面向客户的「我的设备 / 设备与权益」与面向工作人员的「到店登记权益」。
+面向客户的「我的设备 / 设备与权益 / 检测与帮助」，面向工作人员的「到店登记权益」。
 会话与通道规则见 [原生客户端接口：登录与会话](native-client-api.md)；响应使用同一信封：
 成功 `{ success, data, meta }`（列表分页在 `meta.pagination`），失败 `{ error: { code, message, fieldErrors? } }`。
 
@@ -48,6 +48,17 @@
 `repair_orders.device_id`：报修单可选关联一台已绑定设备。关联只影响展示
 （设备详情里的「关联报修」），不改变报修流程本身的权限判定。
 
+`diagnostic_sessions`（Prisma `DiagnosticSession`）
+
+| 字段 | 说明 |
+| --- | --- |
+| `user_id` | 谁做的检测 |
+| `device_id` | 选填，检测针对哪台设备；为空表示没指定 |
+| `category_code` | 分类码，如 `BATTERY` |
+| `answers` | JSON：`[{ questionCode, optionCode }]`，按目录顺序存 |
+| `outcome` | 服务端算出的结论，客户端不可写 |
+| `created_at` | 提交时间 |
+
 **唯一索引与软删的坑**：`(owner_user_id, serial_number)` 唯一索引不会因为软删而释放。
 所以「解绑后用同一个序列号重新绑定」走的是**复活原记录**（清 `deleted_at`、`status` 回
 `ACTIVE`、覆盖可编辑字段），而不是新插一行 —— 新插会直接撞唯一约束。
@@ -59,6 +70,8 @@
 | `device:read_self` | ✅ | — | — |
 | `device:manage_self` | ✅ | — | — |
 | `benefit:read_self` | ✅ | — | — |
+| `diagnostic:run_self` | ✅ | — | — |
+| `diagnostic:read_self` | ✅ | — | — |
 | `device:read` | — | ✅ | ✅ |
 | `benefit:write` | — | ✅ | ✅ |
 | `benefit:void` | — | — | ✅ |
@@ -182,6 +195,73 @@ App 用 `POST /api/v1/customer/devices/{id}` + `X-HTTP-Method-Override: PATCH` �
 作废一条权益，需要 `benefit:void`。只改 `state`，不删行：客户仍能看到「已作废」，
 历史可追溯。重复调用幂等，返回当前状态（第二次不会再报错）。
 
+## 检测（症状问答）
+
+**这是「按你描述的现象归类」，不是硬件检测。** 服务端读不到电池健康度、屏幕和传感器数据，
+也没有任何伪造的检测结果字段。分类目录写在代码里（`features/diagnostics/diagnostic-catalog.ts`），
+6 类各 2 题；每题选项带一个 `signal`（`SELF` 自助可解 / `SERVICE` 该找客服 / `REPAIR` 该送修 /
+`UNKNOWN` 说不清），`signal` **只用于服务端算结论，不下发给客户端**。
+
+结论规则只有一条：取所选选项中**最严重**的 `signal`（`REPAIR > SERVICE > SELF > UNKNOWN`），
+不做加权打分、不按顺序打断 —— 这样「最后一个问题选了没事」也不会把「电池鼓包」降级成自助。
+
+### GET /api/v1/diagnostics/catalog
+
+检测目录，需要登录（任一角色的 `diagnostic:run_self` / `diagnostic:read_self` 之一即可）。
+`data` 为分类数组：
+
+```json
+{
+  "code": "BATTERY", "title": "电池与充放电", "icon": "battery",
+  "scope": "判断不了电池健康度和实际容量",
+  "questions": [ { "code": "BATTERY_SYMPTOM", "label": "电池方面最接近哪种情况？" } ]
+}
+```
+
+`questions` 里只有 `code` 与 `label`，选项与 `signal` 由提交接口在服务端匹配。
+
+### POST /api/v1/customer/diagnostics/sessions
+
+```json
+{ "categoryCode": "BATTERY", "deviceId": "…可选…",
+  "answers": [ { "questionCode": "BATTERY_SYMPTOM", "optionCode": "DRAIN_FAST" },
+               { "questionCode": "BATTERY_AFTER_RESET", "optionCode": "STILL_BAD" } ] }
+```
+
+- 每个问题**必须且只能答一次**；漏答、重复答、未知的 `categoryCode` / `questionCode` / `optionCode`
+  都返回 `VALIDATION_FAILED` 并在 `fieldErrors` 指名具体位置。
+- 请求体里带的 `outcome` **一律忽略**，结论只由服务端按上面的规则算，客户端改不了。
+- `deviceId` 选填；填了就必须是本人设备，否则 404 `DEVICE_NOT_FOUND`。
+
+成功 `201`：
+
+```json
+{
+  "id": "…", "categoryCode": "BATTERY", "categoryTitle": "电池与充放电",
+  "deviceId": null, "createdAt": "2026-11-27T16:11:00.000Z",
+  "outcome": "NEEDS_SERVICE",
+  "headline": "建议到店确认",
+  "detail": "现象指向硬件或系统层面，用软件操作改变不了…",
+  "steps": [],
+  "answers": [ { "questionCode": "…", "questionLabel": "…", "optionCode": "…",
+                 "optionLabel": "…", "reason": "耗电快既可能是电池老化…" } ],
+  "action": "CHECK_BENEFIT",
+  "disclaimer": "结论来自你选择的症状，对照的是本地故障分类目录，不是对设备的检测结果…"
+}
+```
+
+`outcome` 取值：`SELF_SERVICE` / `NEEDS_SERVICE` / `NEEDS_REPAIR` / `INCONCLUSIVE`。
+`action` 取值：`SELF_STEPS` / `CHECK_BENEFIT` / `SUBMIT_REPAIR` / `ASK_STAFF`，
+对应结果页那个主按钮该跳到哪。
+
+### GET /api/v1/customer/diagnostics/sessions
+
+本人检测记录，按时间倒序，分页同其他列表。`GET /api/v1/customer/diagnostics/sessions/{id}`
+取单条，非本人记录 404 `DIAGNOSTIC_SESSION_NOT_FOUND`（同样不区分「不存在」与「不是你的」）。
+
+检测记录**只是留痕**：它不写回设备状态，也不自动生成报修单。结果页的「提交报修」是让用户
+带着 `deviceId` 跳到报修表单，由用户自己确认提交。
+
 ## 演示数据
 
 `prisma db seed` 只建角色 / 分类 / 技能字典，**不建账号**，所以演示设备挂在现成账号上：
@@ -199,7 +279,8 @@ corepack pnpm devices:demo -- --account 100001       # 给该系统客户补 2 �
 
 ## 本期未做
 
-- **检测/故障分类**：另一个 PR。本期不做「自动硬件检测」，也没有任何伪造的检测结果字段 ——
-  详见 `docs/reference/my-huawei/README.md` 的约束（不得把主按钮命名为自动硬件检测）。
-- **工作人员登记权益的 App 页面**：接口已就绪并可 curl 调通，App 侧本轮只做客户视角。
+- **工作人员登记权益 / 管理员作废的 App 页面**：两个接口已就绪并可在接口层调通，App 侧本轮
+  只做客户视角。演示权益由 `devices:demo` 脚本写入。
 - **权益次数核销**：`used_uses` 目前只由数据维护，没有到店核销接口。
+- **自动硬件检测**：明确不做。检测结论来自用户选择的症状，与设备实际读数无关，
+  接口文案里已写明这一点（`disclaimer`）。

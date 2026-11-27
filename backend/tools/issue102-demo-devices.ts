@@ -12,10 +12,17 @@
  * 幂等：设备与权益都用固定 UUID upsert，可重复执行；权益的起止日期按当天重算，
  * 保证「有效 / 已过期 / 已作废」三种状态在演示当天一定各有一条。
  */
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 import { assertExperimentDatabase } from "./db-target.mjs";
+
+// 与 `db:seed`、`accounts:prepare` 一致：先读本机 `.env`，否则 `DATABASE_URL` 为空，
+// 闸门会以「不是实验库」为由直接拒绝执行。
+if (existsSync(".env")) loadEnvFile(".env");
 
 // 与 `db:seed` 同一档：只允许课设开发库或课设测试库。
 assertExperimentDatabase("seed");

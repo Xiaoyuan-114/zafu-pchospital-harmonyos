@@ -34,7 +34,7 @@
 
 | 原文件名 | 重命名后的图片 / 原图页面 | 可参考的组织方式 |
 | --- | --- | --- |
-| `2eb5c08e89b358eddad677839eed9fc1.jpg` | [service-device-benefits.jpg：权益查询](service-device-benefits.jpg) | 设备概要、状态卡片、有效/失效层级，可用于服务页设备上下文；本项目没有保修权益接口 |
+| `2eb5c08e89b358eddad677839eed9fc1.jpg` | [service-device-benefits.jpg：权益查询](service-device-benefits.jpg) | 设备概要、状态卡片、有效/失效层级，用于服务页设备上下文。已按 #102 实现：设备独立绑定、权益由门店登记、客户只读，见 [设备与权益接口](../../../backend/docs/devices-benefits-api.md) |
 | `7133d345c48e776c76df1e855b252d2b.jpg` | [community-event-checkin-detail.jpg：活动帖子与每日打卡](community-event-checkin-detail.jpg) | 活动标题、发布信息、长图和底部操作；每日积分打卡不等于社团活动签到 |
 | `7c4132fc5318480b9d3a28125117bc4d.jpg` | [community-event-post-detail.jpg：活动帖子详情](community-event-post-detail.jpg) | 大标题、发布信息、正文图片区、底部收藏，适合活动详情或案例阅读 |
 | `7d96aa631f365b78fb7c10d356c3a6fe.jpg` | [community-circle-detail-feed.jpg：XMAGE 圈子详情](community-circle-detail-feed.jpg) | 主题头图、快捷分类、置顶、筛选和图文卡片；活动首版仍由社团发布 |
@@ -56,7 +56,7 @@
 | --- | --- | --- | --- |
 | ① | [账号资料面板](account-profile-sheet.jpg) → **我的 / 个人资料** | 保留浅灰底、大圆角、居中头像与昵称层级。头像沿用项目默认资源，名称与联系电话来自当前账号；信息入口进入现有资料编辑。客户显示昵称/电话，成员显示本人有权查看的资料和技能。半屏面板可以后续选择，当前导航层级无需因截图改变 | [ProfilePage.ets](../../../app/entry/src/main/ets/features/profile/ProfilePage.ets)、[PersonalProfilePage.ets](../../../app/entry/src/main/ets/features/profile/PersonalProfilePage.ets) |
 | ② | [订单空态](shopping-orders-empty-state.jpg) → **我的报修 / 工作人员报修列表** | 保留大标题、横向状态筛选、提示条及空态留白；使用真实报修状态（待受理、已受理、维修中、已完成、已取消）。列表有数据时显示机型、问题摘要和更新时间；空态提示「暂无报修」，客户可去报修。筛选需对应真实结果，分页/失败/加载态继续保留。维修备案仍是独立对象，不与报修混成一张订单列表 | [RepairOrdersPage.ets](../../../app/entry/src/main/ets/features/repair/RepairOrdersPage.ets)、[StaffRepairOrdersPage.ets](../../../app/entry/src/main/ets/features/repair/StaffRepairOrdersPage.ets) |
-| ③ | [检测与帮助](service-diagnostics-help.jpg) → **知识库故障分类与 AI 问诊入口** | 保留主行动按钮和圆角故障类别卡；按钮改成「AI 故障问诊」，点击进入现有对话。类别改为开机、系统、网络、磁盘、散热等，展开或点击浏览真实指南，再打开指南/有效案例。这里是目录与入口，AI 对话仍为独立子页；不要将主按钮命名为自动硬件检测 | [KnowledgeLibraryPage.ets](../../../app/entry/src/main/ets/features/knowledge/KnowledgeLibraryPage.ets)、[PublicGuidesPage.ets](../../../app/entry/src/main/ets/features/knowledge/PublicGuidesPage.ets)、[KnowledgePage.ets](../../../app/entry/src/main/ets/features/knowledge/KnowledgePage.ets) |
+| ③ | [检测与帮助](service-diagnostics-help.jpg) → **检测与帮助（症状问答）** | 保留主行动按钮、盾牌图标和圆角故障类别卡。主按钮为「进入检测」，点进去是固定题目：6 类各 2 题，答完给结论、逐条理由和处理步骤。**不是自动硬件检测**，页面已写明结论来自所选症状、系统读不到电池健康度和传感器数据；分类来自服务端目录，不是按标题粗分。原「AI 故障问诊」自由对话保留为独立子页 | [DiagnosticPage.ets](../../../app/entry/src/main/ets/features/diagnostics/DiagnosticPage.ets)、[diagnostic-catalog.ts](../../../backend/src/features/diagnostics/diagnostic-catalog.ts)、[KnowledgePage.ets](../../../app/entry/src/main/ets/features/knowledge/KnowledgePage.ets) |
 
 三个映射均复用当前数据、角色与入口；参考图的昵称、电话、设备、计数和状态不是项目数据。其余八张作为补充构图参考，活动详情/报名等按 #62 的实际交付再接入，不因有参考图就扩大当前功能范围。
 

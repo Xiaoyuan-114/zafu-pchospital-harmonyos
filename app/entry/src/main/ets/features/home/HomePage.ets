@@ -52,9 +52,10 @@ import { MyProductsPage } from '../shopping/MyProductsPage';
 import { ShoppingGoodsParam } from '../shopping/ShoppingTypes';
 import { ROUTE_SHOPPING_GOODS_DETAIL, ROUTE_SHOPPING_GOODS_EDIT, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS, ROUTE_SHOPPING_MY_PRODUCTS } from '../../core/ui/Routes';
 import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST, ROUTE_MY_FORUM_POSTS } from '../../core/ui/Routes';
-import { ROUTE_MY_DEVICES, ROUTE_DEVICE_DETAIL, DeviceFocusParam } from '../../core/ui/Routes';
+import { ROUTE_MY_DEVICES, ROUTE_DEVICE_DETAIL, ROUTE_DIAGNOSTIC, DeviceFocusParam, DiagnosticFocusParam } from '../../core/ui/Routes';
 import { MyDevicesPage } from '../devices/MyDevicesPage';
 import { DeviceDetailPage } from '../devices/DeviceDetailPage';
+import { DiagnosticPage } from '../diagnostics/DiagnosticPage';
 import { ForumPostDetailPage } from '../forum/ForumPostDetailPage';
 import { ForumComposePage } from '../forum/ForumComposePage';
 import { MyForumPostsPage } from '../forum/MyForumPostsPage';
@@ -616,10 +617,23 @@ export struct HomePage {
           deviceId: param !== null && param !== undefined
             ? (param as DeviceFocusParam).deviceId
             : '',
+          // 报修单提交后 RepairOrdersPage 会 +1，这里跟着重拉，避免「刚报修完
+          // 回到详情还写着没有报修记录」——必须先返回列表再进才更新是错的。
+          deviceRefreshVersion: this.serviceDeviceRevision,
           onBack: (): void => { this.pathStack.pop(); },
           onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
           onChanged: (): void => { this.serviceDeviceRevision += 1; },
           onRegisterBackHandler: (handler: () => boolean): void => { this.deviceDetailBackHandler = handler; },
+          onSessionExpired: (): void => { this.expireSession(); }
+        });
+      } else if (name === ROUTE_DIAGNOSTIC) {
+        DiagnosticPage({
+          // 从设备详情进来时带 deviceId，结果页可直接跳到该设备的权益或报修。
+          deviceId: param !== null && param !== undefined
+            ? (param as DiagnosticFocusParam).deviceId
+            : '',
+          onBack: (): void => { this.pathStack.pop(); },
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
           onSessionExpired: (): void => { this.expireSession(); }
         });
       } else if (name === ROUTE_STAFF_ORDERS) {
@@ -741,7 +755,7 @@ export struct HomePage {
       || name === ROUTE_STAFF_ORDER_DETAIL || name === ROUTE_PUBLIC_GUIDES || name === ROUTE_CASE_DETAIL
       || name === ROUTE_CASE_LIBRARY || name === ROUTE_PUBLIC_CASES || name === ROUTE_PUBLIC_CASE_DETAIL || name === ROUTE_KNOWLEDGE_SEARCH
       || name === ROUTE_KNOWLEDGE_LIBRARY || name === ROUTE_KNOWLEDGE || name === ROUTE_FORUM_POST || name === ROUTE_FORUM_COMPOSE
-      || name === ROUTE_MY_DEVICES || name === ROUTE_DEVICE_DETAIL
+      || name === ROUTE_MY_DEVICES || name === ROUTE_DEVICE_DETAIL || name === ROUTE_DIAGNOSTIC
       || name === ROUTE_MY_FORUM_POSTS || name.indexOf('shopping') >= 0)
     .title(name === ROUTE_LOGIN ? '登录' : routeTitle(name))
     .onShown(() => {

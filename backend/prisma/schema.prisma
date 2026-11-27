@@ -48,6 +48,8 @@ model User {
   forumComments      ForumComment[]          @relation("ForumCommentAuthor")
   devices            CustomerDevice[]        @relation("CustomerDeviceOwner")
   deviceBenefits     DeviceBenefit[]         @relation("DeviceBenefitCreator")
+  /** 本人检测记录（Issue #102），只含症状答案与服务端判定，不含硬件读数。 */
+  diagnosticSessions DiagnosticSession[]     @relation("DiagnosticSessionOwner")
 
   @@index([status, deletedAt], map: "users_status_deleted_idx")
   @@map("users")
@@ -479,6 +481,7 @@ model CustomerDevice {
   owner    User            @relation("CustomerDeviceOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   benefits DeviceBenefit[]
   orders   RepairOrder[]   @relation("CustomerDeviceOrders")
+  diagnosticSessions DiagnosticSession[] @relation("DeviceDiagnosticSessions")
 
   @@unique([ownerUserId, serialNumber], map: "customer_devices_owner_serial_uq")
   @@index([ownerUserId, status, createdAt], map: "customer_devices_owner_status_idx")
@@ -518,6 +521,31 @@ model DeviceBenefit {
 
   @@index([deviceId, state, endOn], map: "device_benefits_device_idx")
   @@map("device_benefits")
+}
+
+/// 检测记录（Issue #102）：症状问答的一次提交。
+///
+/// 只存「用户选了什么」与「服务端当时算出什么」，不存任何硬件读数——
+/// 本项目读不到电池健康度、屏幕或传感器数据，存一个像读数的字段只会误导。
+/// `outcome` 是提交当时的结论快照：目录文案改动后，历史记录仍应保持原样。
+model DiagnosticSession {
+  id           String   @id @db.Char(36)
+  userId       String   @map("user_id") @db.Char(36)
+  /// 选填：客户可以在没绑定设备的情况下先问诊
+  deviceId     String?  @map("device_id") @db.Char(36)
+  categoryCode String   @map("category_code") @db.VarChar(32)
+  /// 答案快照 `[{questionCode, optionCode}]`，按目录顺序
+  answers      Json     @db.Json
+  /// SELF_SERVICE / NEEDS_SERVICE / NEEDS_REPAIR / INCONCLUSIVE
+  outcome      String   @db.VarChar(24)
+  createdAt    DateTime @map("created_at") @db.DateTime(3)
+
+  user   User            @relation("DiagnosticSessionOwner", fields: [userId], references: [id], onDelete: Restrict)
+  device CustomerDevice? @relation("DeviceDiagnosticSessions", fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt], map: "diagnostic_sessions_user_created_idx")
+  @@index([deviceId], map: "diagnostic_sessions_device_idx")
+  @@map("diagnostic_sessions")
 }
 
 /// 报修单进度事件：每次状态变更留一条，可追溯（#37 建立，#38 写入工作人员变更）。

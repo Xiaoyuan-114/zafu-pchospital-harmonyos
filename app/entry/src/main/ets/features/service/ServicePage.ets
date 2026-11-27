@@ -2,7 +2,7 @@ import { WorkbenchSummary } from '../repair/WorkbenchSummary';
 import { ROUTE_STAFF_ACTIVITIES, ROUTE_MANAGEMENT } from '../../core/ui/Routes';
 import { HOME_STAFF } from '../../core/auth/AuthContract';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
-import { DeviceFocusParam, ROUTE_CASE_LIBRARY, ROUTE_DEVICE_DETAIL, ROUTE_KNOWLEDGE_LIBRARY, ROUTE_KNOWLEDGE_SEARCH, ROUTE_MY_DEVICES, ROUTE_PUBLIC_CASES, ROUTE_PUBLIC_GUIDES, ROUTE_KNOWLEDGE, ROUTE_REPAIR_ORDERS, ROUTE_STAFF_ORDERS, ROUTE_STAFF_REVIEW } from '../../core/ui/Routes';
+import { DeviceFocusParam, ROUTE_CASE_LIBRARY, ROUTE_DEVICE_DETAIL, ROUTE_DIAGNOSTIC, ROUTE_KNOWLEDGE_LIBRARY, ROUTE_KNOWLEDGE_SEARCH, ROUTE_MY_DEVICES, ROUTE_PUBLIC_CASES, ROUTE_PUBLIC_GUIDES, ROUTE_KNOWLEDGE, ROUTE_REPAIR_ORDERS, ROUTE_STAFF_ORDERS, ROUTE_STAFF_REVIEW } from '../../core/ui/Routes';
 import { ReferenceBanner, ReferenceTitle, ReferenceShortcut, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
 import { isNetworkErrorCode } from '../knowledge/KnowledgeFlow';
@@ -27,7 +27,7 @@ interface ServiceEntry {
 
 function serviceEntries(): ServiceEntry[] {
   return [
-    { title: 'AI 故障问诊', note: '故障定位与排查', icon: $r('app.media.ref_shield'), hue: 'orange', route: ROUTE_KNOWLEDGE, ready: true },
+    { title: '故障问诊', note: '按症状归类，给处理建议', icon: $r('app.media.ref_shield'), hue: 'orange', route: ROUTE_DIAGNOSTIC, ready: true },
     { title: '我要报修', note: '提交电脑故障', icon: $r('app.media.ref_repair'), hue: 'blue', route: ROUTE_REPAIR_ORDERS, ready: true },
     { title: '报修进度', note: '查看处理进度', icon: $r('app.media.ref_cooling'), hue: 'green', route: ROUTE_REPAIR_ORDERS, ready: true },
     { title: '维修指南', note: '查阅公开维修指南', icon: $r('app.media.ref_system'), hue: 'purple', route: ROUTE_PUBLIC_GUIDES, ready: true }
@@ -300,7 +300,7 @@ export struct ServicePage {
         Text('快捷服务').fontSize(20).fontWeight(FontWeight.Bold).margin({ top: 15 })
         Row() {
           if (this.home === HOME_STAFF) {
-            ReferenceShortcut({ title: '故障问诊', icon: $r('app.media.ref_shield'), onSelect: (): void => { this.onOpen(ROUTE_KNOWLEDGE, null); } })
+            ReferenceShortcut({ title: '故障问诊', icon: $r('app.media.ref_shield'), onSelect: (): void => { this.onOpen(ROUTE_DIAGNOSTIC, null); } })
           } else {
             // 客户侧「故障问诊」已在上方功能卡里，这里换成设备入口（Issue #102）。
             ReferenceShortcut({ title: '我的设备', icon: $r('app.media.reading_laptop'), onSelect: (): void => { this.onOpen(ROUTE_MY_DEVICES, null); } })

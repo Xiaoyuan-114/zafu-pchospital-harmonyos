@@ -211,6 +211,10 @@ export const Permission = [
   "device:read",
   "benefit:write",
   "benefit:void",
+  // 检测（Issue #102）：只作用于本人的检测记录，所以给全部角色；
+  // 结论由服务端按目录算，权限码只决定「能不能提交/读自己的记录」。
+  "diagnostic:run_self",
+  "diagnostic:read_self",
 ] as const;
 export type Permission = ValueOf<typeof Permission>;
 

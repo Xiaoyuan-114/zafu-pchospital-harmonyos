@@ -5,7 +5,6 @@ import {
   BenefitView,
   DeviceCreateRequest,
   DeviceDetailView,
-  DeviceUpdateRequest,
   DeviceView,
 } from './DeviceContract';
 
@@ -101,7 +100,7 @@ export class DeviceService {
   }
 
   /** 编辑设备：走 POST + X-HTTP-Method-Override，语义等同 PATCH。 */
-  static async update(id: string, request: DeviceUpdateRequest): Promise<DeviceView> {
+  static async update(id: string, request: DeviceCreateRequest): Promise<DeviceView> {
     DeviceService.ensureReady();
     const token: string = await DeviceService.requireToken();
     const headers: Record<string, string> = {};

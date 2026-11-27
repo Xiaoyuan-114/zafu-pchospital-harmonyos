@@ -140,6 +140,8 @@ export const ApiErrorCode = [
   "DEVICE_IN_USE",
   "BENEFIT_NOT_FOUND",
   "BENEFIT_STATE_INVALID",
+  // 检测记录：不存在或不属于本人（统一 404，理由同设备）。
+  "DIAGNOSTIC_SESSION_NOT_FOUND",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -197,6 +199,7 @@ const defaultStatus: Record<ApiErrorCode, number> = {
   DEVICE_IN_USE: 409,
   BENEFIT_NOT_FOUND: 404,
   BENEFIT_STATE_INVALID: 409,
+  DIAGNOSTIC_SESSION_NOT_FOUND: 404,
   // 不存在、软删除、非有效成员与无权访问统一走 404，避免成员枚举（M3 任务书 §8、§11）
   MEMBER_PROFILE_NOT_FOUND: 404,
   MEMBER_PROFILE_FORBIDDEN: 403,

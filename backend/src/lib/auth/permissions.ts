@@ -23,6 +23,9 @@ export const customerPermissions: readonly Permission[] = [
   "device:read_self",
   "device:manage_self",
   "benefit:read_self",
+  // 检测只写/读本人记录，客户与工作人员一视同仁。
+  "diagnostic:run_self",
+  "diagnostic:read_self",
 ];
 
 export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> = {
@@ -52,6 +55,8 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     // 工作人员**不能**改客户设备（`device:manage_self` 未授予），也不能作废保修。
     "device:read",
     "benefit:write",
+    "diagnostic:run_self",
+    "diagnostic:read_self",
   ],
   ADMIN: [
     "join:read",
@@ -99,6 +104,8 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     // 设备与权益（#102）：管理员可查全部客户设备、登记保修并作废填错的权益。
     "device:read",
     "benefit:write",
+    "diagnostic:run_self",
+    "diagnostic:read_self",
     "benefit:void",
   ],
 };
