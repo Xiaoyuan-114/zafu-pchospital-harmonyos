@@ -200,6 +200,17 @@ export const Permission = [
   "shopping.product:moderate",
   // 论坛管理仅授予 ADMIN；发帖、评论和删除本人内容不需要额外权限码。
   "forum:moderate",
+  // 客户设备与权益（Issue #102）。
+  // `*_self` 是客户自己的对象，客户没有角色，靠 customerPermissions 拿到；
+  // `device:read` / `benefit:write` 是工作人员受理时查看设备、登记保修的权限；
+  // `benefit:void` 单独给管理员 —— 作废一条保修会改变客户看到的结果，不能与登记同权。
+  // 「只能看/改本人设备」不靠权限码保证，由 device-policy 逐条校验 ownerUserId。
+  "device:read_self",
+  "device:manage_self",
+  "benefit:read_self",
+  "device:read",
+  "benefit:write",
+  "benefit:void",
 ] as const;
 export type Permission = ValueOf<typeof Permission>;
 

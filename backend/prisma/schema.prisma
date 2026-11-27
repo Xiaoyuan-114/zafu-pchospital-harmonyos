@@ -46,6 +46,8 @@ model User {
   shoppingOrdersSold ShoppingOrder[]         @relation("ShoppingOrderSeller")
   forumPosts         ForumPost[]             @relation("ForumPostAuthor")
   forumComments      ForumComment[]          @relation("ForumCommentAuthor")
+  devices            CustomerDevice[]        @relation("CustomerDeviceOwner")
+  deviceBenefits     DeviceBenefit[]         @relation("DeviceBenefitCreator")
 
   @@index([status, deletedAt], map: "users_status_deleted_idx")
   @@map("users")
@@ -430,6 +432,8 @@ model RepairOrder {
   assigneeMemberProfileId String? @map("assignee_member_profile_id") @db.Char(36)
   /// 关联的维修备案（#38 完成维修后回填）；本 Issue 不写入
   repairRecordId    String?   @unique(map: "repair_orders_record_uq") @map("repair_record_id") @db.Char(36)
+  /// 关联的客户设备（#102）；客户下单时可选，历史单据为 null，不回填
+  deviceId          String?   @map("device_id") @db.Char(36)
   createdAt         DateTime  @map("created_at") @db.DateTime(3)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
   deletedAt         DateTime? @map("deleted_at") @db.DateTime(3)
@@ -437,12 +441,83 @@ model RepairOrder {
   submittedBy  User              @relation("RepairOrderSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
   assignee     MemberProfile?    @relation("RepairOrderAssignee", fields: [assigneeMemberProfileId], references: [id], onDelete: Restrict)
   repairRecord RepairRecord?     @relation("RepairOrderToRecord", fields: [repairRecordId], references: [id], onDelete: Restrict)
+  device       CustomerDevice?   @relation("CustomerDeviceOrders", fields: [deviceId], references: [id], onDelete: Restrict)
   events       RepairOrderEvent[]
   customerNotifications CustomerNotification[]
 
   @@index([submittedByUserId, status, createdAt], map: "repair_orders_submitter_status_idx")
   @@index([status, lastProgressAt], map: "repair_orders_status_progress_idx")
+  @@index([deviceId, createdAt], map: "repair_orders_device_created_idx")
   @@map("repair_orders")
+}
+
+/// 客户设备（Issue #102）：独立绑定，不再从报修单的机型文本派生。
+///
+/// 与报修单的关系是**可空一对多**：新单据可以选一台已绑定设备，
+/// 历史单据（`deviceId = null`）保持原样，不做推测性回填。
+/// 解绑用软删（`deletedAt` + `status = RETIRED`），历史单据仍能指回原设备。
+model CustomerDevice {
+  id          String    @id @db.Char(36)
+  /// 归属客户账号；数据可见性的唯一依据
+  ownerUserId String    @map("owner_user_id") @db.Char(36)
+  /// 自命名，便于一个账号区分多台（如「上课用的 T14」）
+  label       String    @db.VarChar(40)
+  brand       String    @db.VarChar(40)
+  model       String    @db.VarChar(60)
+  /// 序列号：选填；同一账号内非空时唯一（MySQL 唯一索引允许多个 NULL）
+  serialNumber String?  @map("serial_number") @db.VarChar(120)
+  /// 购买日期：选填，不晚于今天
+  purchaseOn  DateTime? @map("purchase_on") @db.Date
+  /// 来源：SELF = 客户自己新增；REPAIR_IMPORT = 从历史报修单带入（客户确认后写入）
+  source      String    @db.VarChar(16)
+  /// ACTIVE / RETIRED
+  status      String    @db.VarChar(16)
+  createdAt   DateTime  @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt   DateTime? @map("deleted_at") @db.DateTime(3)
+
+  owner    User            @relation("CustomerDeviceOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  benefits DeviceBenefit[]
+  orders   RepairOrder[]   @relation("CustomerDeviceOrders")
+
+  @@unique([ownerUserId, serialNumber], map: "customer_devices_owner_serial_uq")
+  @@index([ownerUserId, status, createdAt], map: "customer_devices_owner_status_idx")
+  @@map("customer_devices")
+}
+
+/// 设备权益（Issue #102）：保修、延保、到店服务等，由工作人员登记。
+///
+/// **不存「是否有效」**：`state` 只表达人工处置（ACTIVE/VOID），
+/// 「有效 / 已过保修期」由 `endOn` 与当天日期在读取时计算，
+/// 否则过期记录会一直显示为有效。
+model DeviceBenefit {
+  id         String    @id @db.Char(36)
+  deviceId   String    @map("device_id") @db.Char(36)
+  /// WARRANTY / EXTENDED / SERVICE / ACCIDENT
+  kind       String    @db.VarChar(24)
+  name       String    @db.VarChar(60)
+  /// 提供方（厂商、店铺或维修队）
+  provider   String    @db.VarChar(60)
+  startOn    DateTime  @map("start_on") @db.Date
+  /// 截止日期；null 表示长期有效
+  endOn      DateTime? @map("end_on") @db.Date
+  region     String    @db.VarChar(80)
+  /// 可用次数：null 表示不限次
+  totalUses  Int?      @map("total_uses")
+  usedUses   Int       @default(0) @map("used_uses")
+  /// ACTIVE / VOID（人工作废，不等同于自然到期）
+  state      String    @db.VarChar(16)
+  note       String?   @db.VarChar(200)
+  /// 登记人（工作人员账号）；客户自证不算，故必填
+  createdByUserId String @map("created_by_user_id") @db.Char(36)
+  createdAt  DateTime  @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  device    CustomerDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  createdBy User           @relation("DeviceBenefitCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([deviceId, state, endOn], map: "device_benefits_device_idx")
+  @@map("device_benefits")
 }
 
 /// 报修单进度事件：每次状态变更留一条，可追溯（#37 建立，#38 写入工作人员变更）。

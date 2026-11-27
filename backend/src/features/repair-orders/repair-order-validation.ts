@@ -32,6 +32,8 @@ export type RepairOrderDraftInput = {
   deviceSerial?: string;
   faultDescription: string;
   contactPhone: string;
+  /** 可选：关联的客户设备（Issue #102）；不填则仍是纯文本机型，与历史行为一致。 */
+  deviceId?: string;
 };
 
 function clean(value: string | undefined): string {
@@ -41,11 +43,13 @@ function clean(value: string | undefined): string {
 /** 归一化：去多余空白；空串与未填视为同一件事（可选字段存 null）。 */
 export function normalizeRepairOrderInput(input: RepairOrderDraftInput): RepairOrderDraftInput {
   const serial = clean(input.deviceSerial);
+  const deviceId = (input.deviceId ?? "").trim();
   return {
     deviceModel: clean(input.deviceModel),
     deviceSerial: serial === "" ? undefined : serial,
     faultDescription: (input.faultDescription ?? "").trim(),
     contactPhone: clean(input.contactPhone),
+    deviceId: deviceId === "" ? undefined : deviceId,
   };
 }
 
@@ -63,6 +67,9 @@ export function validateRepairOrderInput(input: RepairOrderDraftInput): void {
 
   if (input.deviceSerial !== undefined && input.deviceSerial.length > limits.deviceSerialMaxLength)
     errors.deviceSerial = [`序列号不能超过 ${limits.deviceSerialMaxLength} 字`];
+
+  if (input.deviceId !== undefined && input.deviceId.length !== 36)
+    errors.deviceId = ["设备标识无效"];
 
   if (input.faultDescription === "") errors.faultDescription = ["请描述故障现象"];
   else if (input.faultDescription.length < limits.faultDescriptionMinLength)

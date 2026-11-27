@@ -25,6 +25,8 @@ export type RepairOrderView = {
   faultDescription: string;
   contactPhone: string;
   status: RepairOrderStatus;
+  /** 关联的客户设备（#102）；历史单据为 null，客户端据此决定是否显示设备入口。 */
+  deviceId: string | null;
   createdAt: string;
   updatedAt: string;
   lastProgressAt: string | null;
@@ -38,6 +40,7 @@ type RepairOrderRow = {
   faultDescription: string;
   contactPhone: string;
   status: string;
+  deviceId: string | null;
   createdAt: Date;
   updatedAt: Date;
   lastProgressAt: Date | null;
@@ -59,6 +62,7 @@ export function toRepairOrderView(row: RepairOrderRow): RepairOrderView {
     faultDescription: row.faultDescription,
     contactPhone: row.contactPhone,
     status: row.status as RepairOrderStatus,
+    deviceId: row.deviceId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lastProgressAt: row.lastProgressAt === null ? null : row.lastProgressAt.toISOString(),

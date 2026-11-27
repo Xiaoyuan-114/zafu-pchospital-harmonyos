@@ -129,4 +129,4 @@ App 只访问 API，原生通道使用 `X-Client-Type: native` 和 Bearer，会�
 - [开发方案与历史基线](docs/development-plan.md)、[旧 Web 迁移任务](docs/tasks/web-migration/README.md)（保留历史，冲突处以当前目标为准）
 - [参考图索引](docs/reference/my-huawei/README.md)、[项目规则](AGENTS.md)
 - [后端快速开始](backend/README.md)、[本地配置](backend/docs/local-development.md)、[知识配置](backend/docs/knowledge-ai.md)
-- [原生鉴权](backend/docs/native-client-api.md)、[维修接口](backend/docs/native-repairs-api.md)、[活动接口](backend/docs/native-activities-api.md)、[知识浏览接口](backend/docs/knowledge-browse-api.md)
+- [原生鉴权](backend/docs/native-client-api.md)、[维修接口](backend/docs/native-repairs-api.md)、[活动接口](backend/docs/native-activities-api.md)、[知识浏览接口](backend/docs/knowledge-browse-api.md)、[设备与权益接口](backend/docs/devices-benefits-api.md)

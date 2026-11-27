@@ -52,6 +52,9 @@ import { MyProductsPage } from '../shopping/MyProductsPage';
 import { ShoppingGoodsParam } from '../shopping/ShoppingTypes';
 import { ROUTE_SHOPPING_GOODS_DETAIL, ROUTE_SHOPPING_GOODS_EDIT, ROUTE_SHOPPING_ORDERS, ROUTE_SHOPPING_SELLER_ORDERS, ROUTE_SHOPPING_MY_PRODUCTS } from '../../core/ui/Routes';
 import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST, ROUTE_MY_FORUM_POSTS } from '../../core/ui/Routes';
+import { ROUTE_MY_DEVICES, ROUTE_DEVICE_DETAIL, DeviceFocusParam } from '../../core/ui/Routes';
+import { MyDevicesPage } from '../devices/MyDevicesPage';
+import { DeviceDetailPage } from '../devices/DeviceDetailPage';
 import { ForumPostDetailPage } from '../forum/ForumPostDetailPage';
 import { ForumComposePage } from '../forum/ForumComposePage';
 import { MyForumPostsPage } from '../forum/MyForumPostsPage';
@@ -133,6 +136,7 @@ export struct HomePage {
   private loginIntent: LoginIntent = new LoginIntent();
   private loginBusy: boolean = false;
   private customerOrderBackHandler: () => boolean = () => false;
+  private deviceDetailBackHandler: () => boolean = () => false;
   private knowledgeBackHandler: () => boolean = () => false;
   private forumComposeBackHandler: () => boolean = () => false;
   @State knowledgeSearchRevision: number = 0;
@@ -594,9 +598,29 @@ export struct HomePage {
           initialDetailId: param !== null && param !== undefined
             ? (param as RepairOrderFocusParam).orderId
             : '',
+          initialDeviceId: param !== null && param !== undefined
+            ? ((param as RepairOrderFocusParam).deviceId ?? '')
+            : '',
           onSessionExpired: (): void => {
             this.expireSession();
           }
+        });
+      } else if (name === ROUTE_MY_DEVICES) {
+        MyDevicesPage({
+          onBack: (): void => { this.pathStack.pop(); },
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+          onSessionExpired: (): void => { this.expireSession(); }
+        });
+      } else if (name === ROUTE_DEVICE_DETAIL) {
+        DeviceDetailPage({
+          deviceId: param !== null && param !== undefined
+            ? (param as DeviceFocusParam).deviceId
+            : '',
+          onBack: (): void => { this.pathStack.pop(); },
+          onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
+          onChanged: (): void => { this.serviceDeviceRevision += 1; },
+          onRegisterBackHandler: (handler: () => boolean): void => { this.deviceDetailBackHandler = handler; },
+          onSessionExpired: (): void => { this.expireSession(); }
         });
       } else if (name === ROUTE_STAFF_ORDERS) {
         StaffRepairOrdersPage({
@@ -717,6 +741,7 @@ export struct HomePage {
       || name === ROUTE_STAFF_ORDER_DETAIL || name === ROUTE_PUBLIC_GUIDES || name === ROUTE_CASE_DETAIL
       || name === ROUTE_CASE_LIBRARY || name === ROUTE_PUBLIC_CASES || name === ROUTE_PUBLIC_CASE_DETAIL || name === ROUTE_KNOWLEDGE_SEARCH
       || name === ROUTE_KNOWLEDGE_LIBRARY || name === ROUTE_KNOWLEDGE || name === ROUTE_FORUM_POST || name === ROUTE_FORUM_COMPOSE
+      || name === ROUTE_MY_DEVICES || name === ROUTE_DEVICE_DETAIL
       || name === ROUTE_MY_FORUM_POSTS || name.indexOf('shopping') >= 0)
     .title(name === ROUTE_LOGIN ? '登录' : routeTitle(name))
     .onShown(() => {
@@ -744,6 +769,7 @@ export struct HomePage {
         return true;
       }
       if (name === ROUTE_REPAIR_ORDERS && this.customerOrderBackHandler()) return true;
+      if (name === ROUTE_DEVICE_DETAIL && this.deviceDetailBackHandler()) return true;
       if (name === ROUTE_KNOWLEDGE && this.knowledgeBackHandler()) return true;
       if (name === ROUTE_LOGIN || name === ROUTE_PASSWORD_CHANGE) {
         // 放弃登录 / 改密即作废续接意图；注册路由刻意不清，注册页取消后要回登录页续接原操作。

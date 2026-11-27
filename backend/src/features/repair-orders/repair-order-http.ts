@@ -32,6 +32,8 @@ export function repairOrderSubmitInput(body: Record<string, unknown>) {
     deviceSerial: optionalString(body, "deviceSerial"),
     faultDescription: requiredString(body, "faultDescription"),
     contactPhone: requiredString(body, "contactPhone"),
+    // Issue #102：可选关联已绑定设备；归属由服务端校验，客户端传别人的 ID 一律 404。
+    deviceId: optionalString(body, "deviceId"),
   };
 }
 
