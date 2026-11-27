@@ -87,6 +87,7 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     "shopping.product:moderate",
     // 论坛管理权限只给 ADMIN，MEMBER 不因工作人员身份获得跨作者删除权。
     "forum:moderate",
+    "forum.circle:manage",
   ],
 };
 

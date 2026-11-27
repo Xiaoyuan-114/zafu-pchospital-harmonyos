@@ -9,8 +9,9 @@ export type ForumPostView = {
   category: ForumCategory;
   title: string;
   body: string;
-  author: { id: string; displayName: string };
+  author: { id: string; displayName: string; following?: boolean; canFollow?: boolean };
   images: ForumImageView[];
+  circle: { id: string; name: string; archived: boolean } | null;
   commentCount: number;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +59,7 @@ export function toForumPostView(
   const owner = actor?.userId === row.authorId;
   return {
     id: row.id,
+    circle: row.circle ?? null,
     category: row.category as ForumCategory,
     title: row.title,
     body: row.body,

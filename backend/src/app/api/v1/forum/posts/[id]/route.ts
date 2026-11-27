@@ -13,7 +13,9 @@ export async function GET(request: Request, { params }: Context) {
   const requestId = getRequestId(request.headers);
   try {
     const actor = await optionalForumActor(request, requestId);
-    return apiSuccess(await forumService.detail((await params).id, actor), requestId);
+    return apiSuccess(await forumService.detail((await params).id, actor), requestId, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     return apiFailure(error, requestId);
   }

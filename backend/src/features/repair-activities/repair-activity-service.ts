@@ -1,3 +1,4 @@
+import { reconcileActivityPoints } from "@/features/forum/community-points";
 import { randomUUID } from "node:crypto";
 
 import { repairActivitiesPage, repairActivityConsentVersion } from "@/config/repair-activities";
@@ -319,6 +320,7 @@ export const repairActivityService = {
         where: { id: registrationId },
         data: { deletedAt: now },
       });
+      if (current.userId) await reconcileActivityPoints(tx, activityId, [current.userId]);
       await appendAuditLog(tx, {
         actor,
         actorType: "USER",
@@ -466,6 +468,8 @@ export const repairActivityService = {
         where: { id: activityId },
         data: { deletedAt: now },
       });
+      const rewards = await tx.communityActivityReward.findMany({ where: { activityId, awarded: true }, select: { userId: true } });
+      await reconcileActivityPoints(tx, activityId, rewards.map(row => row.userId));
       await appendAuditLog(tx, {
         actor,
         actorType: "USER",

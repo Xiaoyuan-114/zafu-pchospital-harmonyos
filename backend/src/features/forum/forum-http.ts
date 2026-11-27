@@ -31,6 +31,7 @@ export function forumPostInput(body: Record<string, unknown>): ForumPostDraft {
     title: requiredString(body, "title"),
     body: requiredString(body, "body"),
     createRequestKey: requiredString(body, "createRequestKey"),
+    ...(body.circleId !== undefined ? { circleId: requiredString(body, "circleId") } : {}),
   };
 }
 
@@ -44,6 +45,9 @@ export function forumCommentInput(body: Record<string, unknown>): ForumCommentDr
 export function forumPostListQuery(params: URLSearchParams): {
   category?: ForumCategory;
   q?: string;
+  circleId?: string;
+  channel?: string;
+  sort?: string;
 } {
   const category = params.get("category")?.trim().toUpperCase();
   if (category && !isForumCategory(category))
@@ -53,7 +57,13 @@ export function forumPostListQuery(params: URLSearchParams): {
   const q = params.get("q")?.replace(/\s+/g, " ").trim();
   if (q && q.length > forumLimits.queryMaxLength)
     throw new AppError("VALIDATION_FAILED", "q 参数过长");
-  return {
+  const channel = params.get("channel") || "recommended";
+  const sort = params.get("sort") || "latest";
+  if (!["recommended", "following"].includes(channel) || !["latest", "hot"].includes(sort))
+    throw new AppError("VALIDATION_FAILED", "频道或排序参数无效");
+  const circleId = params.get("circleId")?.trim();
+  if (circleId && !/^[0-9a-f-]{36}$/i.test(circleId)) throw new AppError("VALIDATION_FAILED", "圈子参数无效");
+  return { channel, sort, ...(circleId ? { circleId } : {}),
     ...(category ? { category: category as ForumCategory } : {}),
     ...(q ? { q } : {}),
   };

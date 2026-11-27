@@ -200,6 +200,7 @@ export const Permission = [
   "shopping.product:moderate",
   // 论坛管理仅授予 ADMIN；发帖、评论和删除本人内容不需要额外权限码。
   "forum:moderate",
+  "forum.circle:manage",
 ] as const;
 export type Permission = ValueOf<typeof Permission>;
 

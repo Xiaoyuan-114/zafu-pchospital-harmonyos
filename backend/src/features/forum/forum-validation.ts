@@ -11,6 +11,7 @@ export const forumLimits = {
 } as const;
 
 export type ForumPostDraft = {
+  circleId?: string;
   category: string;
   title: string;
   body: string;
@@ -30,6 +31,7 @@ function requestKey(value: string): string {
 
 export function normalizeAndValidatePost(input: ForumPostDraft): ForumPostDraft {
   const draft = {
+    ...(input.circleId ? { circleId: input.circleId.trim() } : {}),
     category: input.category.trim().toUpperCase(),
     title: input.title.replace(/\s+/g, " ").trim(),
     body: input.body.trim(),

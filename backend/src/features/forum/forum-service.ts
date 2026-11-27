@@ -1,3 +1,4 @@
+import { getDb } from "@/lib/db/client";
 import { randomUUID } from "node:crypto";
 import { AppError } from "@/lib/api/errors";
 import { paginationMeta } from "@/lib/api/pagination";
@@ -19,11 +20,12 @@ import { toForumCommentView, toForumPostView } from "./forum-view";
 
 export function replayForumPost(
   existing: ForumPostRow,
-  draft: Pick<ForumPostDraft, "category" | "title" | "body">,
+  draft: Pick<ForumPostDraft, "category" | "title" | "body" | "circleId">,
   actor: AuthorizedActor,
 ) {
   if (existing.deletedAt) throw new AppError("FORUM_POST_NOT_FOUND", "帖子不存在");
   if (
+    (existing.circleId ?? null) !== (draft.circleId ?? null) ||
     existing.category !== draft.category ||
     existing.title !== draft.title ||
     existing.body !== draft.body
@@ -44,20 +46,35 @@ export function replayForumComment(
   return toForumCommentView(existing, actor);
 }
 
+async function withFollowState(items: ForumPostRow[], actor: AuthorizedActor | null) {
+  const follows = actor?.userId && items.length ? await getDb().forumFollow.findMany({
+    where: { userId: actor.userId, targetId: { in: items.map(item => item.authorId) } }, select: { targetId: true },
+  }) : [];
+  const followed = new Set(follows.map(row => row.targetId));
+  return items.map(item => {
+    const view = toForumPostView(item, actor);
+    view.author.following = followed.has(item.authorId);
+    view.author.canFollow = actor?.userId !== item.authorId;
+    return view;
+  });
+}
+
 export function createForumService(repository: typeof forumRepository = forumRepository) {
   return {
     async listPublic(
-      query: { category?: string; q?: string },
+      query: { category?: string; q?: string; circleId?: string; channel?: string; sort?: string },
       pagination: PaginationInput,
       actor: AuthorizedActor | null,
     ) {
+      if (query.channel === "following" && !actor) throw new AppError("UNAUTHENTICATED", "请先登录查看关注频道");
       const { items, total } = await repository.listPublicPosts({
+        viewerId: actor?.userId ?? "",
         ...query,
         skip: (pagination.page - 1) * pagination.pageSize,
         take: pagination.pageSize,
       });
       return {
-        items: items.map((item) => toForumPostView(item, actor)),
+        items: await withFollowState(items, actor),
         pagination: paginationMeta(pagination, total),
       };
     },
@@ -99,7 +116,7 @@ export function createForumService(repository: typeof forumRepository = forumRep
     async detail(id: string, actor: AuthorizedActor | null) {
       const post = await repository.findPostById(id);
       if (!post || post.deletedAt) throw new AppError("FORUM_POST_NOT_FOUND", "帖子不存在");
-      return toForumPostView(post, actor);
+      return (await withFollowState([post], actor))[0];
     },
 
     async deletePost(id: string, actor: AuthorizedActor) {

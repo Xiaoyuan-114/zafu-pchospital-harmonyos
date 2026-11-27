@@ -195,6 +195,7 @@ dbTest("游客列表分类/正文搜索与稳定分页；作者来自服务端�
   const detail = await callRoute(getPost, `http://localhost/api/v1/forum/posts/${second.id}`, {
     params: { id: second.id as string },
   });
+  assert.equal(detail.headers.get("cache-control"), "private, no-store");
   assert.equal((dataOf(detail.json).author as Json).displayName, "成员公开昵称");
   assert.doesNotMatch(JSON.stringify(detail.json), /内部真实姓名|20269999|realName|studentId/);
   assert.equal((dataOf(detail.json).actions as Json).canDelete, false);
