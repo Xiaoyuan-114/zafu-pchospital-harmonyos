@@ -5,7 +5,7 @@ import { HOME_STAFF } from '../../core/auth/AuthContract';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { ROUTE_CASE_LIBRARY, ROUTE_PUBLIC_GUIDES, ROUTE_KNOWLEDGE, ROUTE_PASSWORD_CHANGE, ROUTE_REPAIR_ORDERS, ROUTE_STAFF_ORDERS, ROUTE_STAFF_REVIEW } from '../../core/ui/Routes';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
-import { ReferenceRoundAction, ReferenceShortcut, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
+import { ReferenceRoundAction, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
 import { isNetworkErrorCode } from '../knowledge/KnowledgeFlow';
 import { RepairOrderView, REPAIR_ORDER_COMPLETED, REPAIR_ORDER_ACCEPTED, REPAIR_ORDER_REPAIRING, REPAIR_ORDER_SUBMITTED } from '../repair/RepairOrderContract';
 import { RepairOrderService } from '../repair/RepairOrderService';
@@ -144,7 +144,7 @@ export struct ProfilePage {
       { title: '我的帖子', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MY_FORUM_POSTS },
       { title: '收藏', icon: $r('app.media.ref_star'), note: '', route: ROUTE_FAVORITES },
       { title: '个人资料', icon: $r('app.media.ref_profile'), note: '', route: ROUTE_PERSONAL_PROFILE },
-      { title: '进入工作台', icon: $r('app.media.ref_document'), note: '', route: ROUTE_STAFF_ORDERS },
+      { title: '报修工作台', icon: $r('app.media.ref_document'), note: '', route: ROUTE_STAFF_ORDERS },
       { title: '修改密码', icon: $r('app.media.ref_flag'), note: '', route: ROUTE_PASSWORD_CHANGE },
       { title: '典型案例库', icon: $r('app.media.ref_grid'), note: '', route: ROUTE_CASE_LIBRARY },
       { title: '知识问答', icon: $r('app.media.ref_star'), note: '', route: ROUTE_KNOWLEDGE }
@@ -159,7 +159,7 @@ export struct ProfilePage {
   }
 
   private entryGroup(title: string): string {
-    if (title === '个人资料' || title === '修改密码' || title === '消息' || title === '进入工作台' || title === '管理') return '账号与工作';
+    if (title === '个人资料' || title === '修改密码' || title === '消息' || title === '报修工作台' || title === '管理') return '账号与工作';
     if (title === '我的购物订单' || title === '我发布的商品' || title === '卖家订单') return '校园交易';
     if (title === '我的帖子' || title === '收藏' || title === '我的报名') return '交流';
     return '维修服务';
@@ -209,20 +209,23 @@ export struct ProfilePage {
   profileCard() {
     Column({ space: 16 }) {
       Row({ space: 12 }) {
-        Image($r('app.media.profile_avatar')).width(50).height(50).borderRadius(25)
-        Column({ space: 6 }) {
-          Text(this.cardName || this.displayName || '未命名用户').fontSize(20).fontWeight(FontWeight.Bold)
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.roleText).fontSize(11).fontWeight(FontWeight.Medium).fontColor('#6F5B35')
-            .padding({ left: 8, right: 8, top: 2, bottom: 2 }).backgroundColor('#F3E8D0').borderRadius(12)
-        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        Row({ space: 12 }) {
+          Image($r('app.media.profile_avatar')).width(50).height(50).borderRadius(25)
+          Column({ space: 6 }) {
+            Text(this.cardName || this.displayName || '未命名用户').fontSize(20).fontWeight(FontWeight.Bold)
+              .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+            Text(this.roleText).fontSize(11).fontWeight(FontWeight.Medium).fontColor('#6F5B35')
+              .padding({ left: 8, right: 8, top: 2, bottom: 2 }).backgroundColor('#F3E8D0').borderRadius(12)
+          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          Text('›').fontSize(24).fontColor('#A5ADB2')
+        }.layoutWeight(1).accessibilityText('查看个人资料').onClick(() => { this.onOpen(ROUTE_PERSONAL_PROFILE, null); })
         Button(this.logoutBusy ? '退出中…' : '退出 ›').fontSize(13).height(32)
           .fontColor('#737A80').backgroundColor(Color.Transparent).enabled(!this.logoutBusy)
           .onClick(() => { this.handleLogout(); })
       }.width('100%')
       Row() {
         Text('我的电脑医院').fontSize(15).fontWeight(FontWeight.Medium).fontColor('#62686D').layoutWeight(1)
-        Button(this.home === HOME_STAFF ? '进入工作台' : '我的报修').fontSize(13).height(31)
+        Button(this.home === HOME_STAFF ? '报修工作台' : '我的报修').fontSize(13).height(31)
           .fontColor('#6D5733').backgroundColor('#E6CF9E')
           .onClick(() => { this.onOpen(this.home === HOME_STAFF ? ROUTE_STAFF_ORDERS : ROUTE_REPAIR_ORDERS, null); })
       }.width('100%')
@@ -259,7 +262,6 @@ export struct ProfilePage {
         Text('最近一页本人报修单（最多 20 条）').fontSize(10).fontColor('#8E969C')
       }
     }.width('100%').padding(14).backgroundColor(Color.White).borderRadius(20)
-      .onClick(() => { this.loadStats(); })
   }
 
   @Builder
@@ -268,10 +270,16 @@ export struct ProfilePage {
       Text(title).fontSize(17).fontWeight(FontWeight.Bold).width('100%')
       Flex({ wrap: FlexWrap.Wrap }) {
         ForEach(this.entriesForGroup(title), (entry: ProfileEntry) => {
-          ReferenceShortcut({
-            title: entry.title, icon: entry.icon, note: entry.note,
-            onSelect: (): void => { this.openEntry(entry); }
-          })
+          Button({ type: ButtonType.Normal }) {
+            Column({ space: 8 }) {
+              Image(entry.icon).width(32).height(32).objectFit(ImageFit.Contain)
+              Text(entry.title).fontSize(12).fontWeight(FontWeight.Medium).fontColor('#151A1D')
+                .width('100%').padding({ left: 4, right: 4 }).maxLines(2).textAlign(TextAlign.Center)
+              if (entry.note !== '') { Text(entry.note).fontSize(9).fontColor('#7A8288') }
+            }.width('100%').padding({ top: 8, bottom: 8 })
+          }.width('25%').height(88).backgroundColor(Color.Transparent).borderRadius(14)
+            .accessibilityText(entry.note === '' ? entry.title : `${entry.title}，${entry.note}`)
+            .onClick(() => { this.openEntry(entry); })
         }, (entry: ProfileEntry) => entry.title)
       }.width('100%')
     }.width('100%').padding({ left: 12, right: 12, top: 18, bottom: 16 })
