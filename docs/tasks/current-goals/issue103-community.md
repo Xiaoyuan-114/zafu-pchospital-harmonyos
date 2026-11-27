@@ -1,6 +1,6 @@
 # #103 社区、圈子与积分实施清单
 
-实施口径：[方案评论](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/103#issuecomment-7197720028)，2026-11-27 认领成员确认开工。起点 `main 9d75b04`；后端 PR [#109](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/pull/109)，页面开发分支 `codex/issue103-community-app` 基于该 PR。
+实施口径：[方案评论](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/issues/103#issuecomment-7197720028)，2026-11-27 认领成员确认开工。起点 `main 9d75b04`；后端 PR [#109](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/pull/109)，页面开发分支 `codex/issue103-community-app` 基于该 PR。[页面 PR #110](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/pull/110) 目标为 `main`；#109 合入前，其差异包含后端提交。
 
 ## 页面清单
 
