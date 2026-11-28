@@ -1,6 +1,7 @@
 import { ApiRequestError } from '../../core/network/ApiClient';
 import { SessionService } from '../../core/auth/SessionService';
 import { CommunityService, PointEntry } from './CommunityService';
+import { forumTimeText } from './ForumContract';
 import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK } from './ForumTheme';
 
 @Component
@@ -51,7 +52,7 @@ export struct CommunityPointsPage {
           Row({ space: 12 }) {
             Column({ space: 7 }) {
               Text(item.description).fontSize(15).fontColor(FORUM_INK)
-              Text(item.createdAt.replace('T', ' ').substring(0, 19) + ' UTC').fontSize(11).fontColor('#62666F')
+              Text(forumTimeText(item.createdAt, true) + '（北京时间）').fontSize(11).fontColor('#62666F')
             }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             Text((item.amount > 0 ? '+' : '') + item.amount).fontSize(21).fontWeight(FontWeight.Bold)
               .fontColor(item.amount > 0 ? FORUM_ACCENT : '#B04438')

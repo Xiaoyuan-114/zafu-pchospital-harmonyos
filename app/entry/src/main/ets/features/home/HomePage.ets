@@ -249,6 +249,10 @@ export struct HomePage {
     this.expiring = false;
   }
 
+  private requestLoginOnCurrentPage(): void {
+    this.requestLogin(new LoginIntent());
+  }
+
   private requestLogin(intent: LoginIntent): void {
     if (this.pathStack.getAllPathName().includes(ROUTE_LOGIN)) return;
     this.loginIntent = intent;
@@ -366,7 +370,7 @@ export struct HomePage {
     // 知识目录（#83 迁入服务）刻意**不**在这个放行名单里：先把账号送到改密页。
     // 注意这里没有写 `loginIntent`，所以改密成功后不会自动打开知识目录，
     // 而是回到 tab 根页（安全行为：半受限账号不直接进入知识页撞 403）。
-    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE && route !== 'forum-circle' && route !== 'community-checkin') {
+    if (this.authenticated && this.needsPasswordChange(this.mustChangePassword) && route !== ROUTE_PUBLIC_GUIDES && route !== ROUTE_KNOWLEDGE_SEARCH && route !== ROUTE_ACTIVITY_DETAIL && route !== ROUTE_ACTIVITY_LOOKUP && route !== 'shopping-goods-detail' && route !== GUEST_FORUM_ROUTE) {
       this.openPasswordChange(true);
       return;
     }
@@ -466,12 +470,14 @@ export struct HomePage {
       } else if (name === 'forum-circle') {
         ForumCirclePage({ param: param as CircleParam, authenticated: this.authenticated, refreshVersion: this.forumRefreshVersion,
           onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); },
-          onLogin: (): void => { const intent = new LoginIntent(); intent.route = 'forum-circle'; intent.param = param; this.requestLogin(intent); }, onChanged: (): void => { this.forumRefreshVersion += 1; } });
+          onLogin: (): void => { this.requestLoginOnCurrentPage(); },
+          onSessionExpired: (): void => { this.expireSession(); }, onChanged: (): void => { this.forumRefreshVersion += 1; } });
       } else if (name === 'forum-circle-admin') {
         ForumCircleAdminPage({ param: (param as CircleParam | null) ?? { circleId: '' },
           onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); }, onChanged: (): void => { this.forumRefreshVersion += 1; } });
       } else if (name === 'community-checkin') {
-        CommunityCheckInPage({ authenticated: this.authenticated, onLogin: (): void => { const intent = new LoginIntent(); intent.route = 'community-checkin'; this.requestLogin(intent); },
+        CommunityCheckInPage({ authenticated: this.authenticated, onLogin: (): void => { this.requestLoginOnCurrentPage(); },
+          onSessionExpired: (): void => { this.expireSession(); },
           onOpen: (route: string, target: Object | null): void => { this.openRoute(route, target); } });
       } else if (name === 'community-points') {
         CommunityPointsPage({ onSessionExpired: (): void => { this.expireSession(); } });

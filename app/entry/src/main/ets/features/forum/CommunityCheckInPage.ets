@@ -7,6 +7,7 @@ import { FORUM_ACCENT, FORUM_INK } from './ForumTheme';
 export struct CommunityCheckInPage {
   @Prop @Watch('load') authenticated: boolean = false;
   onLogin: () => void = () => {};
+  onSessionExpired: () => void = () => {};
   onOpen: (route: string, param: Object | null) => void = () => {};
   @State status: CheckInView | null = null;
   @State busy: boolean = false;
@@ -33,7 +34,7 @@ export struct CommunityCheckInPage {
     } catch (error) {
       if (this.disposed || stamp !== SessionService.sessionStamp()) return;
       this.error = (error as ApiRequestError).message;
-      if ((error as ApiRequestError).status === 401) { this.status = null; this.onLogin(); }
+      if ((error as ApiRequestError).status === 401) { this.status = null; this.onSessionExpired(); }
     } finally { if (!this.disposed && generation === this.generation) this.busy = false; }
   }
   private rewards(): number[] { return this.status?.rewards ?? [1, 1, 1, 2, 2, 2, 3]; }

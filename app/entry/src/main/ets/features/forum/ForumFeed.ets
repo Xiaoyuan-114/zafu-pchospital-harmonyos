@@ -14,14 +14,10 @@ import {
   ForumImageView,
   ForumPostParam,
   ForumPostView,
-  forumCategoryLabel
+  forumCategoryLabel,
+  forumTimeText
 } from './ForumContract';
 import { ForumService } from './ForumService';
-
-function forumTimeText(value: string): string {
-  const time: Date = new Date(new Date(value).getTime() + 8 * 3600000);
-  return `${time.getUTCFullYear()}-${(time.getUTCMonth() + 1).toString().padStart(2, '0')}-${time.getUTCDate().toString().padStart(2, '0')} ${time.getUTCHours().toString().padStart(2, '0')}:${time.getUTCMinutes().toString().padStart(2, '0')}`;
-}
 
 /** 公开帖子图片：按真实 API 路径读取并解码，失败可单独重试。 */
 @Component
@@ -183,7 +179,12 @@ struct ForumFeed {
   }
 
   private onAuthChanged(): void {
-    this.pause(); this.snapshot = null; this.resetResults(); this.initialized = false; this.refreshPending = true;
+    this.pause();
+    this.snapshot = null;
+    // 登录时保留公开卡片，让原关注按钮接收登录状态；退出时清除账号关联信息。
+    if (!this.authenticated) this.resetResults();
+    this.initialized = false;
+    this.refreshPending = true;
     if (!this.suspended && this.active) this.load();
   }
 
@@ -520,7 +521,7 @@ struct ForumFeed {
       Text(this.errorText !== '' ? this.errorText : (this.appliedQuery !== '' ? '换个关键词，或清空搜索再看看' : (this.streamChannel === 'following' ? '关注作者或加入圈子后，在这里查看新帖子' : '来分享第一条经验，或提出你的问题')))
         .fontSize(13).fontColor(FORUM_SECONDARY).textAlign(TextAlign.Center).lineHeight(20)
       Button(this.errorText !== '' ? '重新加载' : (this.appliedQuery !== '' ? '清空搜索' : '发布帖子'))
-        .height(36).fontSize(13).fontColor(FORUM_INK).backgroundColor(FORUM_ACCENT).borderRadius(8)
+        .height(36).fontSize(13).fontColor(Color.White).backgroundColor(FORUM_ACCENT).borderRadius(8)
         .padding({ left: 20, right: 20 }).margin({ top: 4 }).onClick(() => {
           if (this.errorText !== '') this.retry();
           else if (this.appliedQuery !== '') this.clearSearch();

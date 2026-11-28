@@ -4,7 +4,8 @@ import { ApiPage } from '../../core/network/ApiContract';
 import { SessionStore } from '../../core/auth/SessionStore';
 import { SessionService } from '../../core/auth/SessionService';
 
-export interface FollowView { id: string; displayName: string; following: boolean; }
+export interface FollowResult { id: string; following: boolean; }
+export interface FollowView extends FollowResult { displayName: string; }
 export interface CircleView {
   id: string; name: string; description: string; category: string; coverUrl: string | null;
   archived: boolean; joined: boolean; memberCount: number; postCount: number; canManage: boolean; canPost: boolean;
@@ -32,13 +33,17 @@ export class CommunityService {
   static async following(page: number): Promise<ApiPage<FollowView>> {
     return ApiClient.getPage<FollowView>(ApiConfig.getBaseUrl(), `${ROOT}/me/following?page=${page}`, await token());
   }
-  static async follow(id: string, following: boolean): Promise<FollowView> {
+  static async follow(id: string, following: boolean): Promise<FollowResult> {
     const path: string = `${ROOT}/users/${encodeURIComponent(id)}/follow`;
-    if (following) return ApiClient.post<FollowView>(ApiConfig.getBaseUrl(), path, '{}', await token());
-    return ApiClient.del<FollowView>(ApiConfig.getBaseUrl(), path, await token());
+    if (following) return ApiClient.post<FollowResult>(ApiConfig.getBaseUrl(), path, '{}', await token());
+    return ApiClient.del<FollowResult>(ApiConfig.getBaseUrl(), path, await token());
   }
-  static async circles(page: number, joined: boolean = false): Promise<ApiPage<CircleView>> {
-    return ApiClient.getPage<CircleView>(ApiConfig.getBaseUrl(), `${ROOT}/circles?page=${page}&joined=${joined}`, await token(joined));
+  static async circles(page: number, joined: boolean = false, category: string = ''): Promise<ApiPage<CircleView>> {
+    const filter: string = category === '' ? '' : `&category=${encodeURIComponent(category)}`;
+    return ApiClient.getPage<CircleView>(ApiConfig.getBaseUrl(), `${ROOT}/circles?page=${page}&joined=${joined}${filter}`, await token(joined));
+  }
+  static async circleCategories(): Promise<string[]> {
+    return ApiClient.get<string[]>(ApiConfig.getBaseUrl(), `${ROOT}/circles?view=categories`, '');
   }
   static async circle(id: string): Promise<CircleView> {
     return ApiClient.get<CircleView>(ApiConfig.getBaseUrl(), `${ROOT}/circles/${encodeURIComponent(id)}`, await token(false));

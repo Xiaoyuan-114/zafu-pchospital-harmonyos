@@ -1,6 +1,6 @@
 # Issue #103 实际验证（进行中）
 
-后端基线为 PR [#109](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/pull/109) 的 `4e63acc`；页面分支 `codex/issue103-community-app` 的修改尚未提交。本机独立 MySQL 3312 使用开发库 `pchospital_exp_issue103` 和测试库 `pchospital_exp_issue103_test`；本机后端 13081，模拟器通过 HDC rport 访问。验证使用课设账号及合成帖子。
+后端基线为 PR [#109](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/pull/109) 的 `4e63acc`；页面首次提交为 `cb0c7a7`，审查补改见 [#110](https://github.com/Xiaoyuan-114/zafu-pchospital-harmonyos/pull/110)。本机独立 MySQL 3312 使用开发库 `pchospital_exp_issue103` 和测试库 `pchospital_exp_issue103_test`；本机后端 13081，模拟器通过 HDC rport 访问。验证使用课设账号及合成帖子。
 
 ## 已通过
 

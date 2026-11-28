@@ -13,7 +13,8 @@ export struct ForumCirclesPage {
   onLogin: () => void = () => {};
   onChanged: () => void = () => {};
   @State items: CircleView[] = [];
-  @State selected: string = '全部';
+  @State selected: string = 'all';
+  @State categoryNames: string[] = [];
   @State loading: boolean = false;
   @State error: string = '';
   @State busyId: string = '';
@@ -27,26 +28,34 @@ export struct ForumCirclesPage {
   private onAuthChanged(): void {
     this.generation += 1;
     this.items = []; this.page = 0; this.totalPages = 0; this.busyId = ''; this.error = '';
-    if (!this.authenticated) this.selected = '全部';
+    if (!this.authenticated && this.selected === 'joined') this.selected = 'all';
     if (!this.disposed) this.load(false);
   }
-  private categories(): string[] {
-    const result: string[] = ['全部', '已加入'];
-    this.items.forEach((item: CircleView) => { if (!result.includes(item.category)) result.push(item.category); });
-    return result;
-  }
-  private visible(): CircleView[] {
-    if (this.selected === '全部') return this.items;
-    if (this.selected === '已加入') return this.items.filter((item: CircleView) => item.joined);
-    return this.items.filter((item: CircleView) => item.category === this.selected);
+  private selectFilter(key: string): void {
+    if (key === this.selected) return;
+    if (key === 'joined' && !this.authenticated) {
+      this.onLogin();
+      return;
+    }
+    this.selected = key;
+    this.items = [];
+    this.page = 0;
+    this.totalPages = 0;
+    this.load(false);
   }
   private async load(append: boolean): Promise<void> {
     const generation: number = ++this.generation;
     const stamp: string = SessionService.sessionStamp();
     this.loading = true; this.error = '';
     try {
-      const result = await CommunityService.circles(append ? this.page + 1 : 1, this.selected === '已加入');
+      const category: string = this.selected.startsWith('category:') ? this.selected.slice('category:'.length) : '';
+      const listing = CommunityService.circles(append ? this.page + 1 : 1, this.selected === 'joined', category);
+      const filters = append ? Promise.resolve(this.categoryNames) : CommunityService.circleCategories();
+      const results = await Promise.all([listing, filters]);
+      const result = results[0];
+      const categories = results[1];
       if (this.disposed || generation !== this.generation || stamp !== SessionService.sessionStamp()) return;
+      this.categoryNames = categories;
       this.items = append ? this.items.concat(result.items) : result.items;
       this.page = result.pagination.page; this.totalPages = result.pagination.totalPages;
     } catch (error) {
@@ -62,10 +71,18 @@ export struct ForumCirclesPage {
       const updated = await CommunityService.join(item.id, !item.joined);
       if (this.disposed || stamp !== SessionService.sessionStamp()) return;
       this.items = this.items.map((row: CircleView) => row.id === updated.id ? updated : row);
+      if (this.selected === 'joined' && !updated.joined) {
+        this.items = this.items.filter((row: CircleView) => row.id !== updated.id);
+      }
       this.onChanged();
     } catch (error) {
       if (!this.disposed && stamp === SessionService.sessionStamp()) this.error = (error as ApiRequestError).message;
     } finally { if (!this.disposed && stamp === SessionService.sessionStamp()) this.busyId = ''; }
+  }
+  @Builder filterLabel(key: string, label: string) {
+    Text(label).fontSize(15).fontColor(this.selected === key ? FORUM_ACCENT : '#62666F')
+      .fontWeight(this.selected === key ? FontWeight.Bold : FontWeight.Normal)
+      .padding({ top: 14, bottom: 14 }).width('100%').onClick(() => { this.selectFilter(key); })
   }
   build() {
     Column({ space: 12 }) {
@@ -80,23 +97,20 @@ export struct ForumCirclesPage {
       Row({ space: 12 }) {
         Scroll() {
           Column({ space: 12 }) {
-            ForEach(this.categories(), (name: string) => {
-              Text(name).fontSize(15).fontColor(this.selected === name ? FORUM_ACCENT : '#62666F')
-                .fontWeight(this.selected === name ? FontWeight.Bold : FontWeight.Normal)
-                .padding({ top: 14, bottom: 14 }).width('100%').onClick(() => {
-                  if (name === '已加入' && !this.authenticated) { this.onLogin(); return; }
-                  this.selected = name; this.load(false);
-                })
-            })
+            this.filterLabel('all', '全部')
+            this.filterLabel('joined', '已加入')
+            ForEach(this.categoryNames, (name: string) => {
+              this.filterLabel('category:' + name, name)
+            }, (name: string) => name)
           }.width('100%')
         }.width(72).height('100%').align(Alignment.Top)
         Scroll() {
           Column({ space: 18 }) {
             if (this.loading && this.items.length === 0) { LoadingPanel({ text: '正在加载圈子…' }) }
-            else if (this.visible().length === 0 && this.error === '') {
-              Text(this.selected === '已加入' ? '还没有加入圈子' : '这里还没有圈子').fontSize(15).fontColor('#62666F').padding(24)
+            else if (this.items.length === 0 && this.error === '') {
+              Text(this.selected === 'joined' ? '还没有加入圈子' : '这里还没有圈子').fontSize(15).fontColor('#62666F').padding(24)
             }
-            ForEach(this.visible(), (item: CircleView) => {
+            ForEach(this.items, (item: CircleView) => {
               Column({ space: 10 }) {
                 Row({ space: 10 }) {
                   if (item.coverUrl) { Image(item.coverUrl).width(48).height(48).borderRadius(12).objectFit(ImageFit.Cover) }

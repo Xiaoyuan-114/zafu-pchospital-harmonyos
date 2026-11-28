@@ -7,7 +7,8 @@
 | GET | `/posts?channel=recommended\|following&circleId=&sort=latest\|hot&category=&q=&page=` | 推荐公开；关注频道须登录，合并关注作者和已加入圈子的帖子并去重。最新按时间/ID 倒序，热门按最近七天有效评论数、时间、ID 倒序 |
 | POST / DELETE | `/users/{id}/follow` | 登录用户关注/取消关注其他用户；重复操作返回当前状态 |
 | GET | `/me/following` | 本人关注用户分页，仅返回公开 ID 和昵称 |
-| GET | `/circles?joined=true&page=` | 全部圈子公开；已加入列表须登录。返回名称、分类、简介、封面、归档、本人加入状态及真实计数 |
+| GET | `/circles?view=categories` | 公开返回全部圈子分类名称（去重），独立于圈子分页 |
+| GET | `/circles?joined=true&category=&page=` | 全部圈子公开；已加入列表须登录。可按分类筛选，筛选先于分页。返回名称、分类、简介、封面、归档、本人加入状态及真实计数 |
 | POST | `/circles` | `forum.circle:manage`；提交 name、description、category、coverUrl、archived 和 createRequestKey |
 | GET / POST | `/circles/{id}` | 公开详情 / 管理员保存完整字段；归档阻止加入和新发帖 |
 | POST / DELETE | `/circles/{id}/membership` | 登录用户加入/退出；重复操作返回当前状态 |

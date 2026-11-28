@@ -332,7 +332,7 @@ export struct ForumComposePage {
           (this.createRequestKey !== '' ? '发布结果尚未确认，继续留在这里可以安全重试；退出后无法恢复本次编辑。' :
           '离开后当前内容与已选图片将丢失。'))
           .fontSize(14).fontColor(FORUM_SECONDARY).lineHeight(22).width('100%')
-        Button('继续编辑').width('100%').height(46).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+        Button('继续编辑').width('100%').height(46).backgroundColor(FORUM_ACCENT).fontColor(Color.White)
           .onClick(() => { this.leaveConfirmOpen = false; })
         Button(this.savedId !== '' ? '退出并查看帖子' : '放弃并退出')
           .width('100%').height(42).backgroundColor('#F2F3F5').fontColor('#B04438')
@@ -352,7 +352,7 @@ export struct ForumComposePage {
       Text('发布帖子').fontSize(18).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).layoutWeight(1)
       Button(this.submitting ? '发布中…' : (this.savedId !== '' ? '继续上传' :
         (this.createRequestKey !== '' ? '重试发布' : '发布')))
-        .fontSize(14).height(38).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+        .fontSize(14).height(38).backgroundColor(FORUM_ACCENT).fontColor(Color.White)
         .enabled(!this.submitting && !this.picking).onClick(() => { this.submit(); })
     }.width('100%').height(56).padding({ left: 16, right: 16 }).backgroundColor(FORUM_SURFACE)
   }
@@ -386,7 +386,7 @@ export struct ForumComposePage {
                 ForEach([FORUM_CATEGORY_GENERAL, FORUM_CATEGORY_EXPERIENCE, FORUM_CATEGORY_QUESTION], (name: string) => {
                   Button(forumCategoryLabel(name)).fontSize(13).height(36)
                     .backgroundColor(this.category === name ? FORUM_ACCENT : '#F2F3F5')
-                    .fontColor(this.category === name ? FORUM_INK : FORUM_SECONDARY)
+                    .fontColor(this.category === name ? Color.White : FORUM_SECONDARY)
                     .enabled(!this.submitting && this.savedId === '' && this.createRequestKey === '')
                     .onClick(() => { this.category = name; })
                 })

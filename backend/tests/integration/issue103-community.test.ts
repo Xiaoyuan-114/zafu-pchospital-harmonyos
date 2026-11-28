@@ -1,3 +1,4 @@
+import { GET as listCircles } from "../../src/app/api/v1/forum/circles/route";
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
@@ -43,4 +44,24 @@ dbTest('同账号多条报名，撤回与恢复只记录一次现场积分',asyn
  assert.equal((await db.communityPointEntry.aggregate({where:{userId:b,source:'ACTIVITY'},_sum:{amount:true}}))._sum.amount,0);
  await db.repairActivityRegistration.update({where:{id:ids[0]},data:{status:'CHECKED_IN'}}); await sync();
  assert.equal((await db.communityPointEntry.aggregate({where:{userId:b,source:'ACTIVITY'},_sum:{amount:true}}))._sum.amount,10);
+});
+
+dbTest("圈子分类独立于首页，按分类筛选后再分页", async () => {
+  const hiddenCategory = "分类-" + randomUUID();
+  const save = (category: string) => communityService.saveCircle(null, {
+    name: "测试圈", description: "测试", category, createRequestKey: randomUUID(),
+  }, actor(a, true));
+  await save("分类-其他");
+  const target = await save(hiddenCategory);
+  for (const query of ["pageSize=1", "view=categories", "category=" + encodeURIComponent(hiddenCategory) + "&pageSize=1"]) {
+    const response = await listCircles(new Request("http://localhost/api/v1/forum/circles?" + query));
+    assert.equal(response.status, 200);
+    const { data, meta } = await response.json();
+    if (query === "pageSize=1") assert.ok(!data.some((item: { id: string }) => item.id === target.id));
+    else if (query === "view=categories") assert.ok(data.includes(hiddenCategory));
+    else {
+      assert.deepEqual(data.map((item: { id: string }) => item.id), [target.id]);
+      assert.equal(meta.pagination.total, 1);
+    }
+  }
 });
