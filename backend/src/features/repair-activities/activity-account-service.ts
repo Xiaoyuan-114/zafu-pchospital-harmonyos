@@ -8,6 +8,7 @@ import { appendAuditLog } from "@/lib/audit/audit-service";
 import { getDb } from "@/lib/db/client";
 import { inSerializableTransaction } from "@/lib/db/transaction";
 import type { AuthorizedActor, PaginationInput } from "@/types/contracts";
+import { ACTIVITY_CHECKIN_POINTS } from "@/features/forum/community-points";
 
 const include = { activity: true } satisfies Prisma.RepairActivityRegistrationInclude;
 type Row = Prisma.RepairActivityRegistrationGetPayload<{ include: typeof include }>;
@@ -70,8 +71,10 @@ export const activityAccountService = {
       include,
     });
     if (!row) throw new AppError("ACTIVITY_REGISTRATION_NOT_FOUND", "报名记录不存在或不可访问");
-    const reward = await getDb().communityActivityReward.findUnique({ where: { userId_activityId: { userId: actor.userId!, activityId } } });
-    return { ...view(row), activityPoints: reward?.awarded ? 10 : 0 };
+    const reward = await getDb().communityActivityReward.findUnique({
+      where: { userId_activityId: { userId: actor.userId!, activityId } },
+    });
+    return { ...view(row), activityPoints: reward?.awarded ? ACTIVITY_CHECKIN_POINTS : 0 };
   },
   async update(activityId: string, id: string, issue: unknown, actor: AuthorizedActor) {
     const issueType = assertValidIssueType(issue);

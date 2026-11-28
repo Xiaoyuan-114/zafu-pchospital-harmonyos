@@ -62,8 +62,12 @@ export function forumPostListQuery(params: URLSearchParams): {
   if (!["recommended", "following"].includes(channel) || !["latest", "hot"].includes(sort))
     throw new AppError("VALIDATION_FAILED", "频道或排序参数无效");
   const circleId = params.get("circleId")?.trim();
-  if (circleId && !/^[0-9a-f-]{36}$/i.test(circleId)) throw new AppError("VALIDATION_FAILED", "圈子参数无效");
-  return { channel, sort, ...(circleId ? { circleId } : {}),
+  if (circleId && !/^[0-9a-f-]{36}$/i.test(circleId))
+    throw new AppError("VALIDATION_FAILED", "圈子参数无效");
+  return {
+    channel,
+    sort,
+    ...(circleId ? { circleId } : {}),
     ...(category ? { category: category as ForumCategory } : {}),
     ...(q ? { q } : {}),
   };

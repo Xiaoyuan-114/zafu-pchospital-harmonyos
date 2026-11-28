@@ -42,24 +42,40 @@ export function isForumUniqueViolation(error: unknown): boolean {
 }
 
 function sameDigest(left: Uint8Array, right: Uint8Array): boolean {
-  return left.byteLength === right.byteLength && left.every((value, index) => value === right[index]);
+  return (
+    left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
+  );
 }
 
 export const forumRepository = {
   async listPublicPosts(options: {
-    category?: string; q?: string; circleId?: string; channel?: string; sort?: string;
-    viewerId?: string; skip: number; take: number;
+    category?: string;
+    q?: string;
+    circleId?: string;
+    channel?: string;
+    sort?: string;
+    viewerId?: string;
+    skip: number;
+    take: number;
   }) {
     const where: Prisma.ForumPostWhereInput = {
       deletedAt: null,
       ...(options.category ? { category: options.category } : {}),
       ...(options.circleId ? { circleId: options.circleId } : {}),
       AND: [
-        ...(options.q ? [{ OR: [{ title: { contains: options.q } }, { body: { contains: options.q } }] }] : []),
-        ...(options.channel === "following" ? [{ OR: [
-          { author: { followers: { some: { userId: options.viewerId } } } },
-          { circle: { memberships: { some: { userId: options.viewerId } } } },
-        ] }] : []),
+        ...(options.q
+          ? [{ OR: [{ title: { contains: options.q } }, { body: { contains: options.q } }] }]
+          : []),
+        ...(options.channel === "following"
+          ? [
+              {
+                OR: [
+                  { author: { followers: { some: { userId: options.viewerId } } } },
+                  { circle: { memberships: { some: { userId: options.viewerId } } } },
+                ],
+              },
+            ]
+          : []),
       ],
     };
     const db = getDb();
@@ -68,8 +84,12 @@ export const forumRepository = {
       const predicates = [Prisma.sql`p.deleted_at IS NULL`];
       if (options.category) predicates.push(Prisma.sql`p.category = ${options.category}`);
       if (options.circleId) predicates.push(Prisma.sql`p.circle_id = ${options.circleId}`);
-      if (options.q) predicates.push(Prisma.sql`(p.title LIKE ${"%" + options.q + "%"} OR p.body LIKE ${"%" + options.q + "%"})`);
-      if (options.channel === "following") predicates.push(Prisma.sql`(
+      if (options.q)
+        predicates.push(
+          Prisma.sql`(p.title LIKE ${"%" + options.q + "%"} OR p.body LIKE ${"%" + options.q + "%"})`,
+        );
+      if (options.channel === "following")
+        predicates.push(Prisma.sql`(
         EXISTS (SELECT 1 FROM forum_follows f WHERE f.user_id = ${options.viewerId} AND f.target_id = p.author_id)
         OR EXISTS (SELECT 1 FROM forum_circle_memberships m WHERE m.user_id = ${options.viewerId} AND m.circle_id = p.circle_id))`);
       const ranked = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
@@ -78,11 +98,19 @@ export const forumRepository = {
         WHERE ${Prisma.join(predicates, " AND ")} GROUP BY p.id, p.created_at
         ORDER BY COUNT(c.id) DESC, p.created_at DESC, p.id DESC
         LIMIT ${BigInt(options.take)} OFFSET ${BigInt(options.skip)}`);
-      const rows = await db.forumPost.findMany({ where: { ...where, id: { in: ranked.map(row => row.id) } }, include: forumPostInclude });
-      return { items: ranked.flatMap(row => rows.filter(item => item.id === row.id)), total };
+      const rows = await db.forumPost.findMany({
+        where: { ...where, id: { in: ranked.map((row) => row.id) } },
+        include: forumPostInclude,
+      });
+      return { items: ranked.flatMap((row) => rows.filter((item) => item.id === row.id)), total };
     }
-    const items = await db.forumPost.findMany({ where, include: forumPostInclude,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: options.skip, take: options.take });
+    const items = await db.forumPost.findMany({
+      where,
+      include: forumPostInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: options.skip,
+      take: options.take,
+    });
     return { items, total };
   },
 
@@ -114,20 +142,33 @@ export const forumRepository = {
   },
 
   async createPost(input: ForumPostDraft & { id: string; authorId: string; now: Date }) {
-    return inSerializableTransaction(async tx => {
+    return inSerializableTransaction(async (tx) => {
       if (input.circleId) {
         await tx.$queryRaw`SELECT id FROM forum_circles WHERE id = ${input.circleId} FOR UPDATE`;
         const circle = await tx.forumCircle.findUnique({ where: { id: input.circleId } });
         if (!circle) throw new AppError("RESOURCE_NOT_FOUND", "圈子不存在");
         if (circle.archived) throw new AppError("STATE_TRANSITION_INVALID", "圈子已归档");
-        if (!await tx.forumCircleMembership.findUnique({ where: { userId_circleId: { userId: input.authorId, circleId: input.circleId } } }))
+        if (
+          !(await tx.forumCircleMembership.findUnique({
+            where: { userId_circleId: { userId: input.authorId, circleId: input.circleId } },
+          }))
+        )
           throw new AppError("FORBIDDEN", "加入圈子后才能发帖");
       }
-      return tx.forumPost.create({ data: {
-        id: input.id, authorId: input.authorId, circleId: input.circleId ?? null,
-        category: input.category, title: input.title, body: input.body,
-        createRequestKey: input.createRequestKey, createdAt: input.now, updatedAt: input.now,
-      }, include: forumPostInclude });
+      return tx.forumPost.create({
+        data: {
+          id: input.id,
+          authorId: input.authorId,
+          circleId: input.circleId ?? null,
+          category: input.category,
+          title: input.title,
+          body: input.body,
+          createRequestKey: input.createRequestKey,
+          createdAt: input.now,
+          updatedAt: input.now,
+        },
+        include: forumPostInclude,
+      });
     });
   },
 

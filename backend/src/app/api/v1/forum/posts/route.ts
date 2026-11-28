@@ -1,4 +1,9 @@
-import { forumPostInput, forumPostListQuery, optionalForumActor, readForumJsonBody } from "@/features/forum/forum-http";
+import {
+  forumPostInput,
+  forumPostListQuery,
+  optionalForumActor,
+  readForumJsonBody,
+} from "@/features/forum/forum-http";
 import { forumService } from "@/features/forum/forum-service";
 import { parsePagination } from "@/lib/api/pagination";
 import { getRequestId } from "@/lib/api/request-id";
@@ -18,7 +23,10 @@ export async function GET(request: Request) {
       parsePagination(params),
       actor,
     );
-    return apiSuccess(result.items, requestId, { pagination: result.pagination, headers: { "Cache-Control": "private, no-store" } });
+    return apiSuccess(result.items, requestId, {
+      pagination: result.pagination,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     return apiFailure(error, requestId);
   }

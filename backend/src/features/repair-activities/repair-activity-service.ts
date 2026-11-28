@@ -468,8 +468,15 @@ export const repairActivityService = {
         where: { id: activityId },
         data: { deletedAt: now },
       });
-      const rewards = await tx.communityActivityReward.findMany({ where: { activityId, awarded: true }, select: { userId: true } });
-      await reconcileActivityPoints(tx, activityId, rewards.map(row => row.userId));
+      const rewards = await tx.communityActivityReward.findMany({
+        where: { activityId, awarded: true },
+        select: { userId: true },
+      });
+      await reconcileActivityPoints(
+        tx,
+        activityId,
+        rewards.map((row) => row.userId),
+      );
       await appendAuditLog(tx, {
         actor,
         actorType: "USER",

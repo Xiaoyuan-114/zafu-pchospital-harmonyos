@@ -47,11 +47,15 @@ export function replayForumComment(
 }
 
 async function withFollowState(items: ForumPostRow[], actor: AuthorizedActor | null) {
-  const follows = actor?.userId && items.length ? await getDb().forumFollow.findMany({
-    where: { userId: actor.userId, targetId: { in: items.map(item => item.authorId) } }, select: { targetId: true },
-  }) : [];
-  const followed = new Set(follows.map(row => row.targetId));
-  return items.map(item => {
+  const follows =
+    actor?.userId && items.length
+      ? await getDb().forumFollow.findMany({
+          where: { userId: actor.userId, targetId: { in: items.map((item) => item.authorId) } },
+          select: { targetId: true },
+        })
+      : [];
+  const followed = new Set(follows.map((row) => row.targetId));
+  return items.map((item) => {
     const view = toForumPostView(item, actor);
     view.author.following = followed.has(item.authorId);
     view.author.canFollow = actor?.userId !== item.authorId;
@@ -66,7 +70,8 @@ export function createForumService(repository: typeof forumRepository = forumRep
       pagination: PaginationInput,
       actor: AuthorizedActor | null,
     ) {
-      if (query.channel === "following" && !actor) throw new AppError("UNAUTHENTICATED", "请先登录查看关注频道");
+      if (query.channel === "following" && !actor)
+        throw new AppError("UNAUTHENTICATED", "请先登录查看关注频道");
       const { items, total } = await repository.listPublicPosts({
         viewerId: actor?.userId ?? "",
         ...query,

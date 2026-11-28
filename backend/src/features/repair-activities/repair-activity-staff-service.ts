@@ -602,8 +602,15 @@ export const repairActivityStaffService = {
         checkedIn.push(toStaffReg(updated));
       }
 
-      const rewardUsers = await tx.repairActivityRegistration.findMany({ where: { id: { in: uniqueIds }, userId: { not: null } }, select: { userId: true } });
-      await reconcileActivityPoints(tx, activityId, rewardUsers.flatMap(row => row.userId ? [row.userId] : []));
+      const rewardUsers = await tx.repairActivityRegistration.findMany({
+        where: { id: { in: uniqueIds }, userId: { not: null } },
+        select: { userId: true },
+      });
+      await reconcileActivityPoints(
+        tx,
+        activityId,
+        rewardUsers.flatMap((row) => (row.userId ? [row.userId] : [])),
+      );
       await appendAuditLog(tx, {
         actor,
         actorType: "USER",

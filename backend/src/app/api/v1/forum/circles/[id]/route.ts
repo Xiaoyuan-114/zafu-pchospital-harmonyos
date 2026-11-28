@@ -5,14 +5,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return communityRequest(request, "optional", async actor => {
+  return communityRequest(request, "optional", async (actor) => {
     const { id } = await context.params;
     return communityService.circle(id, actor);
   });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return communityRequest(request, "required", async actor => {
+  return communityRequest(request, "required", async (actor) => {
     const { id } = await context.params;
     return communityService.saveCircle(id, await readForumJsonBody(request), actor!);
   });
