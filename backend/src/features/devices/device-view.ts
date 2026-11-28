@@ -18,13 +18,16 @@ export type DeviceView = {
 };
 
 /**
- * 权益的**实际生效状态**：由 `state` 与 `endOn` 现场算出，不落库。
+ * 权益的**实际生效状态**：由 `state` 与起止日期现场算出，不落库。
  *
  * 之所以要分「人工作废」和「自然到期」两条轴：
  * `VOID` 是人填错了撤销，`EXPIRED` 是日期过了，两者对客户的解释完全不同，
  * 不能合并成一个 `INACTIVE`。
+ *
+ * `NOT_STARTED` 是「还没生效」（`startOn` 在未来）。缺了它，一条明年才开始的
+ * 保修会显示成「有效」，客户到店才发现不适用。
  */
-export const benefitStatusValues = ["EFFECTIVE", "EXPIRED", "VOID"] as const;
+export const benefitStatusValues = ["EFFECTIVE", "NOT_STARTED", "EXPIRED", "VOID"] as const;
 export type BenefitStatus = (typeof benefitStatusValues)[number];
 
 export type BenefitView = {
@@ -102,12 +105,16 @@ function daysBetween(from: string, to: string): number {
 }
 
 export function toBenefitView(row: BenefitRow, today: string = shanghaiToday()): BenefitView {
+  const startOn = calendarDateString(row.startOn);
   const endOn = calendarDateString(row.endOn);
   let status: BenefitStatus = "EFFECTIVE";
   if (row.state === "VOID") status = "VOID";
   else if (endOn !== null && endOn < today) status = "EXPIRED";
+  else if (startOn !== null && startOn > today) status = "NOT_STARTED";
 
-  const daysRemaining = endOn === null ? null : daysBetween(today, endOn);
+  // 作废的权益不给天数：剩下的天数没有意义，界面也不该出现「还有 165 天」。
+  const daysRemaining =
+    endOn === null || status === "VOID" ? null : daysBetween(today, endOn);
   const remainingUses =
     row.totalUses === null ? null : Math.max(row.totalUses - row.usedUses, 0);
 
@@ -117,7 +124,7 @@ export function toBenefitView(row: BenefitRow, today: string = shanghaiToday()):
     kind: row.kind as BenefitKind,
     name: row.name,
     provider: row.provider,
-    startOn: calendarDateString(row.startOn) ?? "",
+    startOn: startOn ?? "",
     endOn,
     region: row.region,
     totalUses: row.totalUses,

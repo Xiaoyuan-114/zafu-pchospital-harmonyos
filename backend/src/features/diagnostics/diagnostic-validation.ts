@@ -1,9 +1,22 @@
 import { AppError } from "@/lib/api/errors";
-import { findCategory, findOption, findQuestion, type DiagnosticCategory } from "./diagnostic-catalog";
+import {
+  diagnosticCategories,
+  findCategory,
+  findOption,
+  findQuestion,
+  type DiagnosticCategory,
+} from "./diagnostic-catalog";
 import type { DiagnosticAnswerInput } from "./diagnostic-view";
 
-/** 一次最多答两份目录里最长的问题数，超出即视为异常请求。 */
-export const diagnosticAnswerLimit = 8;
+/**
+ * 一次最多答「最长一份目录」的题数，超出即视为异常请求。
+ *
+ * 由目录推导而不是写死数字：目录加题时上限自动跟上，
+ * 也不会再出现「注释说 2 题、常量却是 8」这种对不上的情况。
+ */
+export const diagnosticAnswerLimit = Math.max(
+  ...diagnosticCategories.map((category) => category.questions.length),
+);
 
 export type DiagnosticDraftInput = {
   categoryCode: string;
@@ -39,14 +52,6 @@ export function normalizeDiagnosticInput(body: Record<string, unknown>): Diagnos
   };
   if (deviceId !== "") draft.deviceId = deviceId;
   return draft;
-}
-
-export function validateDeviceIdFormat(deviceId: string): void {
-  if (deviceId.length !== 36) {
-    throw new AppError("VALIDATION_FAILED", "设备标识格式不正确", {
-      fieldErrors: { deviceId: ["设备标识格式不正确"] },
-    });
-  }
 }
 
 /**

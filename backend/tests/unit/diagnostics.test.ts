@@ -16,6 +16,7 @@ import {
   listCategoryViews,
 } from "../../src/features/diagnostics/diagnostic-view";
 import {
+  diagnosticAnswerLimit,
   normalizeDiagnosticInput,
   validateDiagnosticInput,
 } from "../../src/features/diagnostics/diagnostic-validation";
@@ -209,4 +210,10 @@ test("结论值与声明常量对齐；客户拿到检测权限但没有权益�
   assert.ok(customerPermissions.includes("diagnostic:run_self"));
   assert.ok(customerPermissions.includes("diagnostic:read_self"));
   assert.ok(!(customerPermissions as readonly string[]).includes("benefit:write"));
+});
+
+test("回答数量上限由目录推导，目录加题时自动跟上", () => {
+  const longest = Math.max(...diagnosticCategories.map((category) => category.questions.length));
+  assert.equal(diagnosticAnswerLimit, longest);
+  assert.ok(diagnosticAnswerLimit > 0);
 });

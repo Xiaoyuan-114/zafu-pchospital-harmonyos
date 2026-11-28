@@ -277,9 +277,17 @@ export struct DiagnosticPage {
     this.errorText = '';
   }
 
+  /**
+   * 失败页的重试。
+   *
+   * 分两种情况，不能一律回入口页：
+   * - 答案已经收齐（提交失败）：直接重发，用户刚答的两题还在 `answers` 里，
+   *   退回入口等于让他重答一遍。
+   * - 目录没拿到：重新加载，本来也没有答案可留。
+   */
   private retry(): void {
-    if (this.result !== null && this.categoryCode !== '') {
-      this.startCategory(this.categoryCode);
+    if (this.categoryCode !== '' && this.answers.length > 0) {
+      this.submit();
       return;
     }
     this.loadCatalog();

@@ -1,6 +1,7 @@
-import { deviceDraftInput, readJsonBody } from "@/features/devices/device-http";
+import { deviceDraftInput } from "@/features/devices/device-http";
 import { deviceService } from "@/features/devices/device-service";
 import { AppError } from "@/lib/api/errors";
+import { readJsonBody } from "@/lib/api/json-body";
 import { apiFailure, apiSuccess } from "@/lib/api/response";
 import { getRequestId } from "@/lib/api/request-id";
 import { assertWriteAccess, authenticateRequest } from "@/lib/auth/request";

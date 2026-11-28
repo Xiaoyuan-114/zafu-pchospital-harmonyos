@@ -20,6 +20,7 @@ import { DiagnosticFocusParam, RepairOrderFocusParam, ROUTE_DIAGNOSTIC, ROUTE_RE
 import { formatOrderTime, repairOrderStatusLabel } from '../repair/RepairOrderContract';
 import {
   BENEFIT_STATUS_EXPIRED,
+  BENEFIT_STATUS_NOT_STARTED,
   BENEFIT_STATUS_VOID,
   BenefitView,
   DeviceCreateRequest,
@@ -250,6 +251,11 @@ export struct DeviceDetailPage {
     if (benefit.status === BENEFIT_STATUS_VOID) {
       return benefitStatusLabel(benefit.status);
     }
+    if (benefit.status === BENEFIT_STATUS_NOT_STARTED) {
+      // 未生效时 `daysRemaining` 指的是到期日，「还有 N 天」会被读成「N 天后开始」，
+      // 这里直接给生效日，避免误读。
+      return `${benefitStatusLabel(benefit.status)} · 自 ${benefit.startOn} 起`;
+    }
     return `${benefitStatusLabel(benefit.status)} · ${daysRemainingLabel(benefit.daysRemaining, benefit.status)}`;
   }
 
@@ -257,11 +263,11 @@ export struct DeviceDetailPage {
   benefitChip(status: string) {
     Text(benefitStatusLabel(status))
       .fontSize(FONT_CHIP)
-      .fontColor(status === BENEFIT_STATUS_VOID
+      .fontColor(status === BENEFIT_STATUS_VOID || status === BENEFIT_STATUS_NOT_STARTED
         ? $r('app.color.text_secondary')
         : (status === BENEFIT_STATUS_EXPIRED ? $r('app.color.danger') : $r('app.color.brand')))
       .padding({ left: GAP_SM, right: GAP_SM, top: 3, bottom: 3 })
-      .backgroundColor(status === BENEFIT_STATUS_VOID
+      .backgroundColor(status === BENEFIT_STATUS_VOID || status === BENEFIT_STATUS_NOT_STARTED
         ? $r('app.color.field_bg')
         : $r('app.color.brand_soft'))
       .borderRadius(CHIP_RADIUS)
@@ -314,7 +320,7 @@ export struct DeviceDetailPage {
       this.benefitRow('状态', this.statusLine(benefit))
       this.benefitRow('有效期至', formatCalendarDate(benefit.endOn))
       this.benefitRow('适用区域', benefit.region)
-      this.benefitRow('可用次数', remainingUsesLabel(benefit.remainingUses, benefit.totalUses))
+      this.benefitRow('可用次数', remainingUsesLabel(benefit.remainingUses, benefit.totalUses, benefit.status))
       if (benefit.note !== null && benefit.note !== '') {
         this.benefitRow('备注', benefit.note)
       }

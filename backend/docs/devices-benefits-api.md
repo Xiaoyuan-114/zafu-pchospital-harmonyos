@@ -27,7 +27,7 @@
 | `label` / `brand` / `model` | 设备名称 / 品牌 / 型号，必填 |
 | `serial_number` | 选填，最长 120；同一账号内唯一（`owner_user_id + serial_number`） |
 | `purchase_on` | 选填，`DATE`；不允许晚于今天（录入错误，不是「未来才买」） |
-| `source` | `SELF`（客户自填）或 `REPAIR_IMPORT`（从历史报修单带入）；服务端决定 |
+| `source` | `SELF`（客户自填）。`REPAIR_IMPORT`（从历史报修单带入）预留但**本期没有写入路径**，服务端写死 `SELF`，不接受请求体声明 |
 | `status` | `ACTIVE` 在用 / `RETIRED` 已解绑 |
 | `deleted_at` | 软删时间戳，与 `RETIRED` 同时置位 |
 
@@ -78,8 +78,12 @@
 
 归属判定是**逐行**做的，不是只看权限码（`device-policy.ts`）：
 
-- `assertCanReadDevice`：本人设备，或有 `device:read` 的工作人员；否则抛 `DEVICE_NOT_FOUND`（404）。
-  对非本人设备返回 404 而不是 403，是为了不泄露「这个 ID 存在」。
+- `assertCanReadDevice`：本人设备（需 `device:read_self`；工作人员账号自己有设备时靠 `device:read` 兜底），
+  或有 `device:read` 的工作人员；对非本人设备返回 `DEVICE_NOT_FOUND`（404）而不是 403，
+  是为了不泄露「这个 ID 存在」。
+- `assertCanReadBenefits`：本人设备需 `benefit:read_self`（工作人员账号靠 `device:read` / `benefit:write` 兜底），
+  工作人员读他人权益需 `benefit:write` 或 `device:read`。设备详情页里的权益块也走它——
+  否则详情页会绕过 `benefit:read_self`，这个权限码等于没用。
 - `assertCanManageDevice`：只有本人。工作人员能读不能改客户的设备档案。
 - `assertCanCreateDevice` / `assertCanRegisterBenefit` / `assertCanVoidBenefit`：按权限码。
 
@@ -88,6 +92,10 @@
 ### GET /api/v1/customer/devices
 
 本人设备列表。查询参数：`status=ACTIVE|RETIRED`（默认 `ACTIVE`，非法值 400）、`page`、`pageSize`。
+
+`status=RETIRED` 是**查历史**：解绑同时写了 `deleted_at` 与 `status=RETIRED`，所以查这一档时
+不再叠加软删过滤，否则两个条件互斥、永远返回空列表（App 目前没有入口用它，
+留给「设备回收站」这类后续页面）。
 
 `data` 为数组，元素：
 
@@ -117,7 +125,7 @@
 | --- | --- |
 | `VALIDATION_FAILED` | 字段缺失/超长/日期格式错/购买日期晚于今天，`fieldErrors` 给出具体字段 |
 | `DEVICE_SERIAL_CONFLICT` | 序列号已被本人另一台在用设备占用（409） |
-| `FORBIDDEN` | 当前账号没有 `device:manage_self`（如工作人员账号） |
+| `FORBIDDEN` | 当前账号既没有 `device:manage_self` 也没有 `device:read`（正常客户与工作人员都过，仅限权限被收走的账号） |
 
 序列号撞上**本人已解绑**的同一台机器时不报错，直接复活原记录并返回它。
 
@@ -144,6 +152,8 @@
 
 `daysRemaining`：距到期天数，长期有效或已作废为 `null`，已过期为负数。
 `remainingUses`：`totalUses - usedUses`，不小于 0；不限次为 `null`。
+`status`：`EFFECTIVE` 有效 / `NOT_STARTED` 还没生效（`startOn` 在今天之后）/
+`EXPIRED` 已过期 / `VOID` 已作废。
 
 非本人设备且无 `device:read` → 404 `DEVICE_NOT_FOUND`。
 
@@ -207,18 +217,40 @@ App 用 `POST /api/v1/customer/devices/{id}` + `X-HTTP-Method-Override: PATCH` �
 
 ### GET /api/v1/diagnostics/catalog
 
-检测目录，需要登录（任一角色的 `diagnostic:run_self` / `diagnostic:read_self` 之一即可）。
-`data` 为分类数组：
+检测目录，需要登录（`diagnostic:run_self` 或 `diagnostic:read_self` 任一即可）。
+`data` 是**对象**，含分类数组与固定声明：
 
 ```json
 {
-  "code": "BATTERY", "title": "电池与充放电", "icon": "battery",
-  "scope": "判断不了电池健康度和实际容量",
-  "questions": [ { "code": "BATTERY_SYMPTOM", "label": "电池方面最接近哪种情况？" } ]
+  "categories": [
+    {
+      "code": "BATTERY",
+      "title": "电池与充放电",
+      "icon": "battery",
+      "scope": "判断不了电池健康度和实际容量",
+      "questionCount": 2,
+      "questions": [
+        {
+          "code": "BATTERY_SYMPTOM",
+          "title": "电池方面最接近哪种情况？",
+          "options": [
+            { "code": "DRAIN_FAST", "label": "掉电特别快，一天要充两次以上" },
+            { "code": "SWELLING", "label": "机身鼓起来，或后盖被顶开" }
+          ]
+        }
+      ]
+    }
+  ],
+  "disclaimer": "结论来自你选择的症状，对照的是本地故障分类目录，不是对设备的检测结果…"
 }
 ```
 
-`questions` 里只有 `code` 与 `label`，选项与 `signal` 由提交接口在服务端匹配。
+**`options` 必须下发**：App 靠 `questions[].options` 渲染每一问的选项，只给题干的话
+客户端收不到答案、页面直接空掉。字段名是 `title`（不是 `label`），每题还带 `questionCount`
+所在分类的题数。
+
+`options[]` 里只有 `code` 与 `label`，**没有 `signal`**——判定规则留在服务端，
+客户端既改不了结论，也拼不出一个「必定判为在保」的请求。
 
 ### POST /api/v1/customer/diagnostics/sessions
 
@@ -243,16 +275,22 @@ App 用 `POST /api/v1/customer/devices/{id}` + `X-HTTP-Method-Override: PATCH` �
   "headline": "建议到店确认",
   "detail": "现象指向硬件或系统层面，用软件操作改变不了…",
   "steps": [],
-  "answers": [ { "questionCode": "…", "questionLabel": "…", "optionCode": "…",
-                 "optionLabel": "…", "reason": "耗电快既可能是电池老化…" } ],
-  "action": "CHECK_BENEFIT",
+  "answers": [ { "questionCode": "BATTERY_SYMPTOM", "questionTitle": "电池方面最接近哪种情况？",
+                 "optionCode": "DRAIN_FAST", "optionLabel": "掉电特别快…",
+                 "reason": "耗电快既可能是电池老化…" } ],
+  "suggestedAction": "CHECK_BENEFIT",
+  "decisiveOption": "机身鼓起来，或后盖被顶开",
   "disclaimer": "结论来自你选择的症状，对照的是本地故障分类目录，不是对设备的检测结果…"
 }
 ```
 
 `outcome` 取值：`SELF_SERVICE` / `NEEDS_SERVICE` / `NEEDS_REPAIR` / `INCONCLUSIVE`。
-`action` 取值：`SELF_STEPS` / `CHECK_BENEFIT` / `SUBMIT_REPAIR` / `ASK_STAFF`，
+`suggestedAction` 取值：`SELF_STEPS` / `CHECK_BENEFIT` / `SUBMIT_REPAIR` / `ASK_STAFF`，
 对应结果页那个主按钮该跳到哪。
+
+`decisiveOption` 是「把结论拉到这一档的那个选项」的文案，用于回答「为什么是这个结论」；
+记录里的 `answers[]` 逐条给 `reason`，两者合起来让结论可复核。目录改动后旧记录可能
+解析不出，此时为空串。
 
 ### GET /api/v1/customer/diagnostics/sessions
 
@@ -269,18 +307,27 @@ App 用 `POST /api/v1/customer/devices/{id}` + `X-HTTP-Method-Override: PATCH` �
 ```bash
 cd backend
 corepack pnpm accounts:prepare                       # 首次：准备课设测试账号
-corepack pnpm devices:demo -- --account 100001       # 给该系统客户补 2 台设备 + 4 条权益
+corepack pnpm devices:demo -- --account 100001       # 给该客户补 2 台设备 + 4 条权益
+corepack pnpm devices:demo -- --account 100001 --staff 100002   # 指定权益登记人（默认即 100002）
 ```
 
 脚本用固定 UUID upsert，可重复执行；权益起止日期按当天重算，保证演示当天
 「有效 / 已过期 / 已作废」三种状态各有一条。它只按 `--account` 现查账号，
 不硬编码用户 UUID，也不创建账号；`assertExperimentDatabase` 会先拦住非课设库。
+
+**权益的 `created_by_user_id` 写的是工作人员账号（默认 100002），不是客户自己**：
+整个权限设计的地基是「保修只能由工作人员登记，客户自证不算」，演示数据若图省事
+挂在客户名下，界面一旦显示登记人就会自相矛盾。找不到该账号时脚本直接报错并提示先跑
+`accounts:prepare`。
+
 清理：删除 `customer_devices` / `device_benefits` 中 `id` 以 `10200000` 开头的行。
 
 ## 本期未做
 
 - **工作人员登记权益 / 管理员作废的 App 页面**：两个接口已就绪并可在接口层调通，App 侧本轮
   只做客户视角。演示权益由 `devices:demo` 脚本写入。
-- **权益次数核销**：`used_uses` 目前只由数据维护，没有到店核销接口。
+- **权益次数核销**：`used_uses` 没有任何接口能改，只能直接改库；但 `remainingUses`
+  已经下发并在设备详情显示成「可用次数 3 / 4 次」。这个数字目前是不可变的摆设——
+  收敛方式二选一：加 `benefit_redemptions` 核销流水，或把次数展示从界面和接口里去掉。
 - **自动硬件检测**：明确不做。检测结论来自用户选择的症状，与设备实际读数无关，
   接口文案里已写明这一点（`disclaimer`）。

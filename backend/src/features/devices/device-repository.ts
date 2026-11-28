@@ -6,7 +6,9 @@ export const deviceBusyOrderStatuses = ["SUBMITTED", "ACCEPTED", "REPAIRING"] as
 
 /** 列表与详情共用的关联计数：报修次数用于「N 次报修」。 */
 const deviceWithCount = {
-  _count: { select: { orders: true } },
+  // 计数要过滤软删：`recentOrders` 只列 `deletedAt: null` 的单，
+  // 计数不过滤就会出现「5 次报修」但列表只有 4 条。
+  _count: { select: { orders: { where: { deletedAt: null } } } },
 } satisfies Prisma.CustomerDeviceInclude;
 
 export type DeviceWithCount = Prisma.CustomerDeviceGetPayload<{ include: typeof deviceWithCount }>;
@@ -17,9 +19,11 @@ export const deviceRepository = {
     ownerUserId: string,
     options: { skip: number; take: number; status?: string },
   ): Promise<{ items: DeviceWithCount[]; total: number }> {
+    // 查历史（`status=RETIRED`）时必须放开软删过滤：解绑是 `deletedAt` 与
+    // `status=RETIRED` 同时置位，两个条件互斥，带着 `deletedAt: null` 永远查不到。
     const where: Prisma.CustomerDeviceWhereInput = {
       ownerUserId,
-      deletedAt: null,
+      ...(options.status === "RETIRED" ? {} : { deletedAt: null }),
       ...(options.status ? { status: options.status } : {}),
     };
     const db = getDb();

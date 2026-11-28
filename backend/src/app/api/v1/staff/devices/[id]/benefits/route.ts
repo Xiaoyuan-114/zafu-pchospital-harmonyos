@@ -1,5 +1,6 @@
-import { benefitDraftInput, readJsonBody } from "@/features/devices/device-http";
+import { benefitDraftInput } from "@/features/devices/device-http";
 import { benefitService } from "@/features/devices/benefit-service";
+import { readJsonBody } from "@/lib/api/json-body";
 import { apiFailure, apiSuccess } from "@/lib/api/response";
 import { getRequestId } from "@/lib/api/request-id";
 import { assertWriteAccess, authenticateRequest } from "@/lib/auth/request";

@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { AppError } from "@/lib/api/errors";
 import { paginationMeta } from "@/lib/api/pagination";
+import { hasPrismaCode } from "@/lib/db/prisma-errors";
 import type { AuthorizedActor, PaginationInput } from "@/types/contracts";
 import {
   assertCanCreateDevice,
   assertCanManageDevice,
+  assertCanReadBenefits,
   assertCanReadDevice,
 } from "./device-policy";
 import { deviceRepository, type DeviceWithCount } from "./device-repository";
@@ -24,6 +26,14 @@ import {
 
 /** 详情页最多带 5 条历史报修：够回答「这台机器修过几次」，不把详情页做成列表页。 */
 const RECENT_ORDER_LIMIT = 5;
+
+/**
+ * 设备来源：本期只有「客户自填」这一条写入路径。
+ *
+ * 保留 `source` 列是为了将来「从报修单带入」能区分数据来历，
+ * 但在真正实现那条路径之前，服务端不接受任何来自请求体的来源声明。
+ */
+const DEVICE_SOURCE_SELF = "SELF";
 
 function serialOf(input: DeviceDraftInput): string | null {
   return input.serialNumber ?? null;
@@ -57,6 +67,9 @@ export const deviceService = {
     const device = await deviceRepository.findById(id);
     if (!device) throw new AppError("DEVICE_NOT_FOUND", "设备不存在");
     assertCanReadDevice(actor, device);
+    // 详情页一半内容是权益，读权益的权限码要在这里也生效，
+    // 否则 `benefit:read_self` 只在权益子接口上起作用，等于可以绕过。
+    assertCanReadBenefits(actor, device);
 
     const [benefits, orders] = await Promise.all([
       deviceRepository.listBenefits(device.id),
@@ -78,16 +91,18 @@ export const deviceService = {
   /**
    * 新增设备。
    *
-   * `source` 由服务端决定，**不接收客户端自报**：客户在表单里新增一律是 `SELF`；
-   * `REPAIR_IMPORT` 只在「从报修单带入」那条路径上由服务端写入。
+   * `source` 由服务端写死为 `SELF`，**不接收客户端自报**：客户在表单里新增一台机器，
+   * 来源就是自填。`REPAIR_IMPORT` 是「从报修单带入」那条路径的来源值，本期没有实现
+   * 那条路径，所以这里也不该有能写进去的入口——否则任何人改个请求体就能把设备
+   * 标成「系统从报修单认出来的」，与「不冒充真实业务」相悖。
    *
    * 序列号撞到自己已解绑的同一台机器时复活原记录，不再新建一行——
    * 唯一索引 `(owner, serial)` 不因软删释放，硬新建会直接撞约束。
    */
   async create(
     actor: AuthorizedActor,
-    input: DeviceDraftInput & { source?: string },
-  ): Promise<DeviceView> {
+    input: DeviceDraftInput,
+  ): Promise<{ device: DeviceView; created: boolean }> {
     assertCanCreateDevice(actor);
     const userId = actor.userId as string;
 
@@ -105,25 +120,33 @@ export const deviceService = {
           brand: normalized.brand,
           model: normalized.model,
           purchaseOn: purchaseOf(normalized),
-          source: input.source === "REPAIR_IMPORT" ? "REPAIR_IMPORT" : "SELF",
+          source: DEVICE_SOURCE_SELF,
           now: new Date(),
         });
-        return toDeviceView(revived);
+        return { device: toDeviceView(revived), created: false };
       }
     }
 
-    const created = await deviceRepository.create({
-      id: randomUUID(),
-      ownerUserId: userId,
-      label: normalized.label,
-      brand: normalized.brand,
-      model: normalized.model,
-      serialNumber: serial,
-      purchaseOn: purchaseOf(normalized),
-      source: input.source === "REPAIR_IMPORT" ? "REPAIR_IMPORT" : "SELF",
-      now: new Date(),
-    });
-    return toDeviceView(created);
+    try {
+      const created = await deviceRepository.create({
+        id: randomUUID(),
+        ownerUserId: userId,
+        label: normalized.label,
+        brand: normalized.brand,
+        model: normalized.model,
+        serialNumber: serial,
+        purchaseOn: purchaseOf(normalized),
+        source: DEVICE_SOURCE_SELF,
+        now: new Date(),
+      });
+      return { device: toDeviceView(created), created: true };
+    } catch (error) {
+      // 两个请求同时绑同一台机器时，「先查后插」两次都查不到，第二条由唯一索引挡住。
+      // 不翻译的话 Prisma 的 P2002 会冒到 INTERNAL_ERROR，客户端拿到 500 而不是冲突。
+      if (hasPrismaCode(error, "P2002"))
+        throw new AppError("DEVICE_SERIAL_CONFLICT", "这台设备已经绑定过了");
+      throw error;
+    }
   },
 
   /** 编辑设备：只改归属人自己的可编辑字段，状态与来源不接收客户端输入。 */
@@ -138,18 +161,33 @@ export const deviceService = {
     const serial = serialOf(normalized);
     if (serial !== null && serial !== device.serialNumber) {
       const conflict = await deviceRepository.findByOwnerSerial(device.ownerUserId, serial);
-      if (conflict && conflict.id !== device.id)
-        throw new AppError("DEVICE_SERIAL_CONFLICT", "这台设备已经绑定过了");
+      if (conflict && conflict.id !== device.id) {
+        // 撞上已解绑的记录时不能直接放行：唯一索引 `(owner, serial)` 不因软删释放，
+        // 而「编辑」不像「新增」那样有复活语义，硬写会撞约束报 500。
+        // 这里给出可操作的指引，而不是一句「已经绑定过了」。
+        throw new AppError(
+          "DEVICE_SERIAL_CONFLICT",
+          conflict.deletedAt === null
+            ? "这个序列号已被你另一台设备占用"
+            : "这个序列号属于你已解绑的设备；请先在新增页用同一序列号把它绑回来，再编辑信息",
+        );
+      }
     }
 
-    const updated = await deviceRepository.update(device.id, {
-      label: normalized.label,
-      brand: normalized.brand,
-      model: normalized.model,
-      serialNumber: serial,
-      purchaseOn: purchaseOf(normalized),
-    });
-    return toDeviceView(updated);
+    try {
+      const updated = await deviceRepository.update(device.id, {
+        label: normalized.label,
+        brand: normalized.brand,
+        model: normalized.model,
+        serialNumber: serial,
+        purchaseOn: purchaseOf(normalized),
+      });
+      return toDeviceView(updated);
+    } catch (error) {
+      if (hasPrismaCode(error, "P2002"))
+        throw new AppError("DEVICE_SERIAL_CONFLICT", "这个序列号已被你另一台设备占用");
+      throw error;
+    }
   },
 
   /**
@@ -174,7 +212,7 @@ export const deviceService = {
   async listBenefits(actor: AuthorizedActor, deviceId: string) {
     const device = await deviceRepository.findById(deviceId);
     if (!device) throw new AppError("DEVICE_NOT_FOUND", "设备不存在");
-    assertCanReadDevice(actor, device);
+    assertCanReadBenefits(actor, device);
     const benefits = await deviceRepository.listBenefits(device.id);
     return benefits.map((benefit) => toBenefitView(benefit));
   },

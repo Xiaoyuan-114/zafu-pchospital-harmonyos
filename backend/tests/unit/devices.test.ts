@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { AppError } from "../../src/lib/api/errors";
+import { hasPrismaCode } from "../../src/lib/db/prisma-errors";
 import { customerPermissions, permissionsForRoles } from "../../src/lib/auth/permissions";
 import type { AuthorizedActor, Permission } from "../../src/types/contracts";
 import {
   assertCanManageDevice,
+  assertCanReadBenefits,
   assertCanReadDevice,
   assertCanRegisterBenefit,
   assertCanVoidBenefit,
@@ -234,4 +237,66 @@ test("登记与作废权益的权限隔离", () => {
   assertCanRegisterBenefit(actor(["benefit:write"], "staff-1"));
   assert.throws(() => assertCanVoidBenefit(actor(["benefit:write"], "staff-1")), /没有执行该操作的权限/);
   assertCanVoidBenefit(actor(["benefit:void"], "admin-1"));
+});
+
+test("未生效：startOn 在今天之后时状态是 NOT_STARTED，不是「有效」", () => {
+  const notStarted = toBenefitView(
+    {
+      ...benefitRow,
+      startOn: new Date("2026-06-15T00:00:00.000Z"),
+      endOn: new Date("2026-07-01T00:00:00.000Z"),
+    },
+    "2026-06-01",
+  );
+  assert.equal(notStarted.status, "NOT_STARTED");
+  // 天数仍按到期日算（30 天），界面靠状态另外提示「自 X 起」，不能把剩余天数当生效倒计时。
+  assert.equal(notStarted.daysRemaining, 30);
+});
+
+test("已作废的权益不给天数：否则界面会出现「已作废 · 还有 165 天」", () => {
+  const voided = toBenefitView({ ...benefitRow, state: "VOID" }, "2026-06-01");
+  assert.equal(voided.status, "VOID");
+  assert.equal(voided.daysRemaining, null);
+});
+
+test("读权益：本人需 benefit:read_self，工作人员靠 device:read，陌生人不暴露存在性", () => {
+  assertCanReadBenefits(actor(["benefit:read_self"]), device);
+  assertCanReadBenefits(actor(["benefit:write"], "staff-1"), device);
+  assertCanReadBenefits(actor(["device:read"], "staff-1"), device);
+
+  // 有设备读权限、没有权益读权限时不能靠详情页绕过去。
+  assert.throws(
+    () => assertCanReadBenefits(actor(["device:read_self"]), device),
+    /没有执行该操作的权限/,
+  );
+
+  try {
+    assertCanReadBenefits(actor(["benefit:read_self"], "user-2"), device);
+    assert.fail("应当拒绝");
+  } catch (error) {
+    assert.equal((error as AppError).code, "DEVICE_NOT_FOUND");
+  }
+});
+
+test("设备来源不接受客户端自报：解析层没有 source，路由不读 body.source", () => {
+  const http = readFileSync(
+    new URL("../../src/features/devices/device-http.ts", import.meta.url),
+    "utf8",
+  );
+  assert.equal(http.includes("deviceCreateSource"), false);
+  assert.equal(http.includes("REPAIR_IMPORT"), false);
+
+  const route = readFileSync(
+    new URL("../../src/app/api/v1/customer/devices/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.equal(route.includes("body.source"), false);
+  assert.equal(route.includes("REPAIR_IMPORT"), false);
+});
+
+test("Prisma 唯一键冲突可识别（用于把并发重复绑定翻译成 409）", () => {
+  assert.equal(hasPrismaCode({ code: "P2002" }, "P2002"), true);
+  assert.equal(hasPrismaCode({ code: "P2025" }, "P2002"), false);
+  assert.equal(hasPrismaCode(new AppError("DEVICE_NOT_FOUND", "x"), "P2002"), false);
+  assert.equal(hasPrismaCode(null, "P2002"), false);
 });

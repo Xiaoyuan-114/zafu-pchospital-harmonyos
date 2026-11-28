@@ -93,6 +93,13 @@ export interface DiagnosticSessionView {
   detail: string;
   steps: string[];
   suggestedAction: DiagnosticAction;
+  /**
+   * 最强的那条信号来自哪个选项（选项文案）。
+   *
+   * 这是「为什么是这个结论」的锚点：结果页除了列出所有答案，还要能指出
+   * 是哪一个把结论拉到这一档的。目录改动后旧记录可能解析不出，给空串。
+   */
+  decisiveOption: string;
   disclaimer: string;
   createdAt: string;
 }

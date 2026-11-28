@@ -36,12 +36,6 @@ export function deviceDraftInput(body: Record<string, unknown>) {
   };
 }
 
-/** 设备来源白名单：只允许客户端声明「从报修单带入」，其余一律按 SELF 处理。 */
-export function deviceCreateSource(body: Record<string, unknown>): string {
-  const value = body.source;
-  return value === "REPAIR_IMPORT" ? "REPAIR_IMPORT" : "SELF";
-}
-
 /** 权益登记入参。 */
 export function benefitDraftInput(body: Record<string, unknown>) {
   return {
@@ -68,20 +62,5 @@ export function deviceListStatus(params: URLSearchParams): string | undefined {
 /** 工作人员按序列号查询时的关键字。 */
 export function deviceLookupSerial(params: URLSearchParams): string {
   return (params.get("serial") ?? "").trim();
-}
-
-/** 读取 JSON 请求体：空体 400（写接口都要求实体），非对象 400。 */
-export async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
-  const text = await request.text();
-  if (!text.trim()) throw new AppError("VALIDATION_FAILED", "请求体不能为空");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new AppError("VALIDATION_FAILED", "请求体不是合法 JSON");
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-    throw new AppError("VALIDATION_FAILED", "请求体必须是 JSON 对象");
-  return parsed as Record<string, unknown>;
 }
 

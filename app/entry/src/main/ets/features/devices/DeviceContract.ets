@@ -21,6 +21,7 @@ export const DEVICE_STATUS_RETIRED: string = 'RETIRED';
 
 /** 权益的实际生效状态，与后端 benefitStatusValues 对齐。 */
 export const BENEFIT_STATUS_EFFECTIVE: string = 'EFFECTIVE';
+export const BENEFIT_STATUS_NOT_STARTED: string = 'NOT_STARTED';
 export const BENEFIT_STATUS_EXPIRED: string = 'EXPIRED';
 export const BENEFIT_STATUS_VOID: string = 'VOID';
 
@@ -145,6 +146,9 @@ export function benefitStatusLabel(status: string): string {
   if (status === BENEFIT_STATUS_EFFECTIVE) {
     return '有效';
   }
+  if (status === BENEFIT_STATUS_NOT_STARTED) {
+    return '未生效';
+  }
   if (status === BENEFIT_STATUS_EXPIRED) {
     return '已过保修期';
   }
@@ -172,17 +176,20 @@ export function benefitKindLabel(kind: string): string {
 }
 
 /**
- * 状态 → 卡片排序权重：有效在前、已过期居中、已作废垫底。
+ * 状态 → 卡片排序权重：有效在前、未生效其次、已过期再次、已作废垫底。
  * 后端已按同样顺序排过，前端再排一次是为了本地编辑后立即重排时不跳序。
  */
 export function benefitStatusRank(status: string): number {
   if (status === BENEFIT_STATUS_EFFECTIVE) {
     return 0;
   }
-  if (status === BENEFIT_STATUS_EXPIRED) {
+  if (status === BENEFIT_STATUS_NOT_STARTED) {
     return 1;
   }
-  return 2;
+  if (status === BENEFIT_STATUS_EXPIRED) {
+    return 2;
+  }
+  return 3;
 }
 
 /**
@@ -226,8 +233,16 @@ export function daysRemainingLabel(days: number | null, status: string): string 
   return `还有 ${days} 天`;
 }
 
-/** 可用次数 → 界面文案。null 表示不限次。 */
-export function remainingUsesLabel(remaining: number | null, total: number | null): string {
+/**
+ * 可用次数 → 界面文案。null 表示不限次。
+ *
+ * 已作废的权益不显示「2 / 2 次」：次数还有、但权益已经不能用了，
+ * 只报次数会让客户以为还能去店里做两次服务。与 `daysRemainingLabel` 同口径。
+ */
+export function remainingUsesLabel(remaining: number | null, total: number | null, status: string): string {
+  if (status === BENEFIT_STATUS_VOID) {
+    return '—';
+  }
   if (total === null || total === undefined) {
     return '不限次';
   }

@@ -45,6 +45,25 @@ export function assertCanManageDevice(actor: AuthorizedActor, device: DeviceOwne
     throw new AppError("FORBIDDEN", "没有执行该操作的权限");
 }
 
+/**
+ * 读权益：本人可读自己的（`benefit:read_self`），工作人员靠 `benefit:write`
+ * 或 `device:read` 可读全部。
+ *
+ * 单独成一个函数是因为权益是一个独立资源：设备能看 ≠ 权益能看。
+ * 之前只在权益子接口里复用 `assertCanReadDevice`，导致 `benefit:read_self`
+ * 这个权限码发给了客户却从来没有被校验过，权限矩阵等于一纸空文。
+ */
+export function assertCanReadBenefits(actor: AuthorizedActor, device: DeviceOwnership): void {
+  if (device.deletedAt !== null) throw new AppError("DEVICE_NOT_FOUND", "设备不存在");
+  if (device.ownerUserId === actor.userId) {
+    if (!has(actor, "benefit:read_self") && !has(actor, "benefit:write") && !has(actor, "device:read"))
+      throw new AppError("FORBIDDEN", "没有执行该操作的权限");
+    return;
+  }
+  if (!has(actor, "benefit:write") && !has(actor, "device:read"))
+    throw new AppError("DEVICE_NOT_FOUND", "设备不存在");
+}
+
 /** 登记权益：工作人员与管理员（`benefit:write`）。受理时补录也走这里。 */
 export function assertCanRegisterBenefit(actor: AuthorizedActor): void {
   requirePermission(actor, "benefit:write");

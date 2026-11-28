@@ -1,16 +1,23 @@
 /**
- * Issue #102 演示数据：给某个客户账号补两台设备与三条权益，供模拟器演示用。
+ * Issue #102 演示数据：给某个客户账号补两台设备与四条权益，供模拟器演示用。
  *
  * 为什么不做进 `prisma db seed`：
  * seed 只建角色/分类/技能字典，**不建账号**（见 backend/docs/local-development.md）。
  * 设备必须挂在真实账号上，所以这里按 `--account` 现查账号，绝不硬编码用户 UUID，
  * 也不创建任何账号。
  *
+ * 权益的登记人必须是**工作人员**（`--staff`，默认 100002）：整个权限设计的地基是
+ * 「保修只能由工作人员登记，客户自证不算」。如果这里图省事写成客户自己的 id，
+ * 演示数据就会当场显示「由客户本人登记」——一旦界面加上登记人，数据自己打自己。
+ *
  * 用法（只操作课设库，`assertExperimentDatabase` 会先拦一道）：
  *   corepack pnpm devices:demo -- --account 100001
+ *   corepack pnpm devices:demo -- --account 100001 --staff 100002
  *
  * 幂等：设备与权益都用固定 UUID upsert，可重复执行；权益的起止日期按当天重算，
  * 保证「有效 / 已过期 / 已作废」三种状态在演示当天一定各有一条。
+ * （「未生效」不做样本：它是将来才开始的权益，演示数据里凭空造一条只会让
+ *   三张卡的排序截图对不上，该状态由 `devices.test.ts` 覆盖。）
  */
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
@@ -59,6 +66,14 @@ function parseAccount(argv: string[]): string {
   return value.trim();
 }
 
+/** 权益登记人：默认课设的工作人员账号，可用 `--staff` 覆盖。 */
+function parseStaffAccount(argv: string[]): string {
+  const index = argv.indexOf("--staff");
+  const value = index >= 0 ? argv[index + 1] : undefined;
+  if (value && !value.startsWith("--")) return value.trim();
+  return "100002";
+}
+
 function startOfUtcDay(base: Date): Date {
   return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
 }
@@ -88,6 +103,20 @@ async function main(): Promise<void> {
       select: { displayName: true, status: true, deletedAt: true },
     });
     if (!user || user.deletedAt !== null) throw new Error(`账号 ${account} 已删除，无法挂演示数据`);
+
+    // 权益的登记人必须是工作人员，不能借用客户自己的 id（见文件头注释）。
+    const staffAccount = parseStaffAccount(process.argv.slice(2));
+    const staffIdentity = await prisma.userIdentity.findFirst({
+      where: { identifierNormalized: staffAccount, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!staffIdentity) {
+      throw new Error(
+        `找不到工作人员账号 ${staffAccount}（权益登记人）。先执行 corepack pnpm accounts:prepare，` +
+          "或用 --staff 指定一个工作人员账号。",
+      );
+    }
+    const staffUserId = staffIdentity.userId;
 
     const devices = [
       {
@@ -181,12 +210,14 @@ async function main(): Promise<void> {
       const { id, ...data } = benefit;
       await prisma.deviceBenefit.upsert({
         where: { id },
-        update: { ...data, state: "ACTIVE", updatedAt: now },
+        // `update` 也写登记人：否则早先按客户 id 灌进去的旧数据，
+        // 重跑脚本只会更新日期，登记人还是错的。
+        update: { ...data, state: "ACTIVE", createdByUserId: staffUserId, updatedAt: now },
         create: {
           id,
           ...data,
           state: "ACTIVE",
-          createdByUserId: userId,
+          createdByUserId: staffUserId,
           createdAt: now,
           updatedAt: now,
         },
@@ -209,6 +240,7 @@ async function main(): Promise<void> {
         usedUses: 0,
         state: "VOID",
         note: "录入错误后作废，演示「已作废」与「已过期」的区别",
+        createdByUserId: staffUserId,
         updatedAt: now,
       },
       create: {
@@ -224,7 +256,7 @@ async function main(): Promise<void> {
         usedUses: 0,
         state: "VOID",
         note: "录入错误后作废，演示「已作废」与「已过期」的区别",
-        createdByUserId: userId,
+        createdByUserId: staffUserId,
         createdAt: now,
         updatedAt: now,
       },
@@ -237,6 +269,7 @@ async function main(): Promise<void> {
     process.stdout.write(
       [
         `账号 ${account}（${user.displayName ?? "未命名"}）现有 ${deviceCount} 台在用设备、${benefitCount} 条权益记录。`,
+        `权益登记人：工作人员 ${staffAccount}（不是客户本人）。`,
         "演示入口：App → 服务 → 我的设备 → 点任一设备 → 设备与权益。",
         "清理：删除 customer_devices / device_benefits 中 id 以 10200000 开头的行。",
         "",

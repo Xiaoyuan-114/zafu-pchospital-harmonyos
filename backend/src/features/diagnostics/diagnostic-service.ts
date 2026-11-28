@@ -40,17 +40,22 @@ function toSessionView(row: DiagnosticSessionRow): DiagnosticSessionView {
   const answers = answersOf(row);
   const outcome = isDiagnosticOutcome(row.outcome) ? row.outcome : "INCONCLUSIVE";
   const copy = outcomeCopyOf(outcome);
+  // 结论文案用**存下来的** outcome（目录改了也不该让旧记录换结论）；
+  // `decisiveOption` 只回答「哪条答案最强」，从答案现算，解析不出时给空串。
+  const described = category ? describeAnswers(category, answers) : [];
+  const decisiveOption = category ? evaluateAnswers(category, described).decisiveOption : "";
   return {
     id: row.id,
     categoryCode: row.categoryCode,
     categoryTitle: category?.title ?? row.categoryCode,
     deviceId: row.deviceId,
-    answers: category ? describeAnswers(category, answers) : [],
+    answers: described,
     outcome,
     headline: copy.headline,
     detail: copy.detail,
     steps: stepsOf(category, answers),
     suggestedAction: copy.action as DiagnosticAction,
+    decisiveOption,
     disclaimer: DIAGNOSTIC_DISCLAIMER,
     createdAt: row.createdAt.toISOString(),
   };
