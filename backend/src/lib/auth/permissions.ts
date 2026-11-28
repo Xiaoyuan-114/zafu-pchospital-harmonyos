@@ -101,6 +101,7 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     "shopping.product:moderate",
     // 论坛管理权限只给 ADMIN，MEMBER 不因工作人员身份获得跨作者删除权。
     "forum:moderate",
+    "forum.circle:manage",
     // 设备与权益（#102）：管理员可查全部客户设备、登记保修并作废填错的权益。
     "device:read",
     "benefit:write",

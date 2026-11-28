@@ -1,3 +1,4 @@
+import { reconcileActivityPoints } from "@/features/forum/community-points";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -581,6 +582,7 @@ export const repairActivityStaffService = {
           data: {
             status: "CHECKED_IN",
             checkedInAt: now,
+            pointsEligible: true,
             ...(updates.has(registrationId) ? { issueType: updates.get(registrationId) } : {}),
           },
         });
@@ -600,6 +602,15 @@ export const repairActivityStaffService = {
         checkedIn.push(toStaffReg(updated));
       }
 
+      const rewardUsers = await tx.repairActivityRegistration.findMany({
+        where: { id: { in: uniqueIds }, userId: { not: null } },
+        select: { userId: true },
+      });
+      await reconcileActivityPoints(
+        tx,
+        activityId,
+        rewardUsers.flatMap((row) => (row.userId ? [row.userId] : [])),
+      );
       await appendAuditLog(tx, {
         actor,
         actorType: "USER",
@@ -659,6 +670,7 @@ export const repairActivityStaffService = {
         before: { status: "CHECKED_IN" },
         after: { status: "REGISTERED", memberProfileId: member.id },
       });
+      if (reg.userId) await reconcileActivityPoints(tx, activityId, [reg.userId]);
       await recordProcessing(tx, attendance.id, new Date());
       return toStaffReg(updated);
     });

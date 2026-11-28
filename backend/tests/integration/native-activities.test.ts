@@ -137,6 +137,8 @@ async function clearActivities() {
     select: { id: true, repairRecordId: true },
   });
   const records = regs.flatMap((r) => (r.repairRecordId ? [r.repairRecordId] : []));
+  await db.communityPointEntry.deleteMany({ where: { activityId: { in: activityIds } } });
+  await db.communityActivityReward.deleteMany({ where: { activityId: { in: activityIds } } });
   await db.repairActivityRegistration.deleteMany({ where: { activityId: { in: activityIds } } });
   await db.repairActivityAttendance.deleteMany({ where: { activityId: { in: activityIds } } });
   await db.repairActivity.deleteMany({ where: { id: { in: activityIds } } });

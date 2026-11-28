@@ -200,6 +200,7 @@ export const Permission = [
   "shopping.product:moderate",
   // 论坛管理仅授予 ADMIN；发帖、评论和删除本人内容不需要额外权限码。
   "forum:moderate",
+  "forum.circle:manage",
   // 客户设备与权益（Issue #102）。
   // `*_self` 是客户自己的对象，客户没有角色，靠 customerPermissions 拿到；
   // `device:read` / `benefit:write` 是工作人员受理时查看设备、登记保修的权限；

@@ -1,3 +1,6 @@
+import { CircleParam } from './CommunityService';
+import { FollowButton } from './FollowButton';
+import { SessionService } from '../../core/auth/SessionService';
 import { image } from '@kit.ImageKit';
 import { LengthMetrics } from '@kit.ArkUI';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
@@ -11,14 +14,10 @@ import {
   ForumImageView,
   ForumPostParam,
   ForumPostView,
-  forumCategoryLabel
+  forumCategoryLabel,
+  forumTimeText
 } from './ForumContract';
 import { ForumService } from './ForumService';
-
-function forumTimeText(value: string): string {
-  const time: Date = new Date(new Date(value).getTime() + 8 * 3600000);
-  return `${time.getUTCFullYear()}-${(time.getUTCMonth() + 1).toString().padStart(2, '0')}-${time.getUTCDate().toString().padStart(2, '0')} ${time.getUTCHours().toString().padStart(2, '0')}:${time.getUTCMinutes().toString().padStart(2, '0')}`;
-}
 
 /** 公开帖子图片：按真实 API 路径读取并解码，失败可单独重试。 */
 @Component
@@ -135,6 +134,12 @@ interface ForumFeedSnapshot {
 /** 独立滚动的论坛信息流；隐藏频道时保留实例，查询与活动完全分离。 */
 @Component
 struct ForumFeed {
+  @Prop @Watch('onStreamChanged') streamChannel: string = 'recommended';
+  @Prop @Watch('onStreamChanged') circleId: string = '';
+  @Prop @Watch('onStreamChanged') sort: string = 'latest';
+  @Prop @Watch('onAuthChanged') authenticated: boolean = false;
+  onRequireLogin: () => void = () => {};
+  onChanged: () => void = () => {};
   @Prop @Watch('onRefreshVersionChanged') refreshVersion: number = 0;
   @Prop @Watch('onActiveChanged') active: boolean = true;
   @Link @Watch('onSearchModeChanged') searching: boolean;
@@ -172,6 +177,18 @@ struct ForumFeed {
     this.suspended = true;
     this.pause();
   }
+
+  private onAuthChanged(): void {
+    this.pause();
+    this.snapshot = null;
+    // 登录时保留公开卡片，让原关注按钮接收登录状态；退出时清除账号关联信息。
+    if (!this.authenticated) this.resetResults();
+    this.initialized = false;
+    this.refreshPending = true;
+    if (!this.suspended && this.active) this.load();
+  }
+
+  private onStreamChanged(): void { this.pause(); this.snapshot = null; this.query = ''; this.appliedQuery = ''; this.resetResults(); this.initialized = false; this.load(); }
 
   private pause(): void {
     if (this.loading || this.loadingMore) this.refreshPending = true;
@@ -270,6 +287,7 @@ struct ForumFeed {
   private async loadPage(targetPage: number, append: boolean): Promise<void> {
     if (this.suspended || !this.active) return;
     const generation: number = ++this.generation;
+    const stamp: string = SessionService.sessionStamp();
     const sentCategory: string = this.category;
     const sentQuery: string = this.appliedQuery;
     const pagesToRestore: number = append ? targetPage : Math.max(1, this.page);
@@ -285,8 +303,8 @@ struct ForumFeed {
       let last: ApiPage<ForumPostView> | null = null;
       const firstPage: number = append ? targetPage : 1;
       for (let next: number = firstPage; next <= pagesToRestore; next += 1) {
-        const result: ApiPage<ForumPostView> = await ForumService.listPosts(sentCategory, sentQuery, next);
-        if (generation !== this.generation || this.suspended || !this.active) return;
+        const result: ApiPage<ForumPostView> = await ForumService.listPosts(sentCategory, sentQuery, next, this.streamChannel, this.circleId, this.sort);
+        if (generation !== this.generation || this.suspended || !this.active || stamp !== SessionService.sessionStamp()) return;
         items = this.mergedPosts(items, result.items);
         last = result;
         if (next >= result.pagination.totalPages) break;
@@ -433,6 +451,15 @@ struct ForumFeed {
           .textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
         Text(forumTimeText(item.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
       }.width('100%')
+      Row() {
+        if (item.circle) {
+          Button('# ' + item.circle.name).fontSize(12).height(28).fontColor(FORUM_ACCENT).backgroundColor(Color.Transparent)
+            .onClick(() => { const target: CircleParam = { circleId: item.circle!.id }; this.onOpen('forum-circle', target); })
+        }
+        Blank().layoutWeight(1)
+        FollowButton({ author: item.author, authenticated: this.authenticated, onLogin: this.onRequireLogin,
+          onChanged: (): void => { this.onChanged(); } })
+      }.width('100%')
       Text(item.title).fontSize(18).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).lineHeight(25)
         .width('100%').maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
       if (item.body.trim() !== item.title.trim()) {
@@ -489,12 +516,12 @@ struct ForumFeed {
   emptyState() {
     Column({ space: 12 }) {
       Image($r('app.media.forum_comment')).width(36).height(36)
-      Text(this.errorText !== '' ? '暂时无法加载帖子' : (this.appliedQuery !== '' ? '没有找到相关帖子' : '这里还没有帖子'))
+      Text(this.errorText !== '' ? '暂时无法加载帖子' : (this.appliedQuery !== '' ? '没有找到相关帖子' : (this.streamChannel === 'following' ? '还没有关注动态' : '这里还没有帖子')))
         .fontSize(16).fontWeight(FontWeight.Medium).fontColor(FORUM_INK)
-      Text(this.errorText !== '' ? this.errorText : (this.appliedQuery !== '' ? '换个关键词，或清空搜索再看看' : '来分享第一条经验，或提出你的问题'))
+      Text(this.errorText !== '' ? this.errorText : (this.appliedQuery !== '' ? '换个关键词，或清空搜索再看看' : (this.streamChannel === 'following' ? '关注作者或加入圈子后，在这里查看新帖子' : '来分享第一条经验，或提出你的问题')))
         .fontSize(13).fontColor(FORUM_SECONDARY).textAlign(TextAlign.Center).lineHeight(20)
       Button(this.errorText !== '' ? '重新加载' : (this.appliedQuery !== '' ? '清空搜索' : '发布帖子'))
-        .height(36).fontSize(13).fontColor(FORUM_INK).backgroundColor(FORUM_ACCENT).borderRadius(8)
+        .height(36).fontSize(13).fontColor(Color.White).backgroundColor(FORUM_ACCENT).borderRadius(8)
         .padding({ left: 20, right: 20 }).margin({ top: 4 }).onClick(() => {
           if (this.errorText !== '') this.retry();
           else if (this.appliedQuery !== '') this.clearSearch();
@@ -527,6 +554,13 @@ struct ForumFeed {
   build() {
     Column() {
       if (this.searching) { this.searchBar() }
+      if (this.streamChannel === 'following') {
+        Row() {
+          Text('关注作者与已加入圈子的动态').fontSize(12).fontColor(FORUM_SECONDARY).layoutWeight(1)
+          Button('管理关注').fontSize(12).fontColor(FORUM_ACCENT).backgroundColor(Color.Transparent)
+            .onClick(() => { this.onOpen('forum-following', null); })
+        }.padding({ left: 16, right: 16 }).width('100%')
+      }
       this.categoryBar()
       Divider().color(FORUM_LINE).strokeWidth(0.5)
       Refresh({ refreshing: $$this.refreshing }) {

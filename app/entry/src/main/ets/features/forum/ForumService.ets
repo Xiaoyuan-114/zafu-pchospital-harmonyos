@@ -42,10 +42,10 @@ function textData(value: string): ArrayBuffer {
 }
 
 export class ForumService {
-  static async listPosts(category: string, query: string, page: number): Promise<ApiPage<ForumPostView>> {
+  static async listPosts(category: string, query: string, page: number, channel: string = 'recommended', circleId: string = '', sort: string = 'latest'): Promise<ApiPage<ForumPostView>> {
     return ApiClient.getPage<ForumPostView>(
       ApiConfig.getBaseUrl(),
-      `${POSTS_PATH}?category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${PAGE_SIZE}`,
+      `${POSTS_PATH}?category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${PAGE_SIZE}&channel=${channel}&circleId=${encodeURIComponent(circleId)}&sort=${sort}`,
       await optionalToken()
     );
   }

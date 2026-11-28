@@ -128,6 +128,11 @@ export function routeTitle(name: string): string {
   if (name === ROUTE_ACTIVITY_ADMIN) return '活动管理';
   if (name === ROUTE_ACTIVITY_EDIT) return '创建 / 编辑活动';
   if (name === ROUTE_ACTIVITY_REGISTRATION_ADMIN) return '活动报名管理';
+  if (name === 'forum-following') return '我的关注';
+  if (name === 'forum-circle') return '圈子';
+  if (name === 'forum-circle-admin') return '圈子管理';
+  if (name === 'community-checkin') return '每日打卡';
+  if (name === 'community-points') return '我的积分';
   if (name === ROUTE_FORUM_POST) return '帖子详情';
   if (name === ROUTE_FORUM_COMPOSE) return '发布帖子';
   if (name === ROUTE_MY_FORUM_POSTS) return '我的帖子';

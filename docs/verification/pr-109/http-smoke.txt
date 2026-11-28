@@ -1,0 +1,16 @@
+GET /circles -> 200
+POST /circles -> 201
+POST /circles -> 201
+POST /circles -> 201
+POST /circles -> 409
+POST /circles -> 403
+POST /users/b709e90d-0a2f-4ffb-a6f3-72bbc0f47c48/follow -> 200
+POST /circles/2ea7e07f-f78b-4af1-8675-eb6f8cafe790/membership -> 200
+GET /circles -> 200
+POST /posts -> 201
+GET /posts -> 200
+POST /me/check-in -> 200
+POST /me/check-in -> 200
+GET /me/points -> 200
+DELETE /users/b709e90d-0a2f-4ffb-a6f3-72bbc0f47c48/follow -> 200
+Passed 15 real HTTP requests; synthetic fixtures cleaned.
