@@ -981,6 +981,7 @@ model CommunityActivityReward {
   revision Int @default(0)
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   @@id([userId, activityId])
+  @@index([activityId], map: "community_activity_rewards_activity_id_idx")
   @@map("community_activity_rewards")
 }
 

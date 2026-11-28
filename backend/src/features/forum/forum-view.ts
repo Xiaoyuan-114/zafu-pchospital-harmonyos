@@ -89,9 +89,7 @@ export function toForumCommentView(
     createdAt: row.createdAt.toISOString(),
     actions: {
       canDelete:
-        row.deletedAt === null &&
-        Boolean(actor?.userId) &&
-        (owner || isForumModerator(actor!)),
+        row.deletedAt === null && Boolean(actor?.userId) && (owner || isForumModerator(actor!)),
     },
   };
 }
