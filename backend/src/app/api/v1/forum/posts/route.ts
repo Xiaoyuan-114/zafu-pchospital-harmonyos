@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       parsePagination(params),
       actor,
     );
-    return apiSuccess(result.items, requestId, { pagination: result.pagination });
+    return apiSuccess(result.items, requestId, { pagination: result.pagination, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return apiFailure(error, requestId);
   }

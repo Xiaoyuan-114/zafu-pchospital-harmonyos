@@ -46,6 +46,13 @@ model User {
   shoppingOrdersSold ShoppingOrder[]         @relation("ShoppingOrderSeller")
   forumPosts         ForumPost[]             @relation("ForumPostAuthor")
   forumComments      ForumComment[]          @relation("ForumCommentAuthor")
+  following          ForumFollow[]           @relation("ForumFollower")
+  followers          ForumFollow[]           @relation("ForumFollowTarget")
+  circleMemberships  ForumCircleMembership[]
+  circlesCreated     ForumCircle[]
+  dailyCheckIns      CommunityDailyCheckIn[]
+  pointEntries       CommunityPointEntry[]
+  activityRewards    CommunityActivityReward[]
 
   @@index([status, deletedAt], map: "users_status_deleted_idx")
   @@map("users")
@@ -697,6 +704,7 @@ model RepairActivityRegistration {
   consentVersion          String?        @map("consent_version") @db.VarChar(16)
   consentAcceptedAt       DateTime?      @map("consent_accepted_at") @db.DateTime(3)
   checkedInAt             DateTime?      @map("checked_in_at") @db.DateTime(3)
+  pointsEligible          Boolean        @default(false) @map("points_eligible")
   servedAt                DateTime?      @map("served_at") @db.DateTime(3)
   servedByMemberProfileId String?        @map("served_by_member_profile_id") @db.Char(36)
   repairRecordId          String?        @unique(map: "repair_activity_regs_repair_record_uq") @map("repair_record_id") @db.Char(36)
@@ -899,9 +907,87 @@ model ShoppingOrder {
 // 分类使用固定字符串白名单；软删除保留审计数据，但所有公开读取都过滤删除态。
 // ---------------------------------------------------------------------------
 
+model ForumFollow {
+  userId String @map("user_id") @db.Char(36)
+  targetId String @map("target_id") @db.Char(36)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  user User @relation("ForumFollower", fields: [userId], references: [id], onDelete: Restrict)
+  target User @relation("ForumFollowTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  @@id([userId, targetId])
+  @@index([targetId])
+  @@map("forum_follows")
+}
+
+model ForumCircle {
+  id String @id @db.Char(36)
+  name String @db.VarChar(60)
+  description String @db.VarChar(1000)
+  category String @db.VarChar(40)
+  coverUrl String? @map("cover_url") @db.VarChar(1000)
+  archived Boolean @default(false)
+  createdBy String @map("created_by") @db.Char(36)
+  createRequestKey String @map("create_request_key") @db.VarChar(128)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  creator User @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  memberships ForumCircleMembership[]
+  posts ForumPost[]
+  @@unique([createdBy, createRequestKey])
+  @@index([category, createdAt])
+  @@map("forum_circles")
+}
+
+model ForumCircleMembership {
+  userId String @map("user_id") @db.Char(36)
+  circleId String @map("circle_id") @db.Char(36)
+  joinedAt DateTime @default(now()) @map("joined_at") @db.DateTime(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  circle ForumCircle @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  @@id([userId, circleId])
+  @@index([circleId])
+  @@map("forum_circle_memberships")
+}
+
+model CommunityDailyCheckIn {
+  userId String @map("user_id") @db.Char(36)
+  day DateTime @db.Date
+  streak Int
+  points Int
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([userId, day])
+  @@map("community_daily_check_ins")
+}
+
+model CommunityPointEntry {
+  id String @id @db.Char(36)
+  userId String @map("user_id") @db.Char(36)
+  source String @db.VarChar(32)
+  sourceKey String @map("source_key") @db.VarChar(128)
+  activityId String? @map("activity_id") @db.Char(36)
+  amount Int
+  description String @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@unique([userId, source, sourceKey])
+  @@index([userId, createdAt, id])
+  @@map("community_point_entries")
+}
+
+model CommunityActivityReward {
+  userId String @map("user_id") @db.Char(36)
+  activityId String @map("activity_id") @db.Char(36)
+  awarded Boolean @default(false)
+  revision Int @default(0)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([userId, activityId])
+  @@map("community_activity_rewards")
+}
+
 model ForumPost {
   id               String         @id @db.Char(36)
   authorId         String         @map("author_id") @db.Char(36)
+  circleId         String?        @map("circle_id") @db.Char(36)
   /// GENERAL / EXPERIENCE / QUESTION
   category         String         @db.VarChar(32)
   title            String         @db.VarChar(120)
@@ -911,12 +997,14 @@ model ForumPost {
   updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
   deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
   author           User           @relation("ForumPostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  circle           ForumCircle?   @relation(fields: [circleId], references: [id], onDelete: Restrict)
   comments         ForumComment[]
   images           ForumPostImage[]
 
   @@unique([authorId, createRequestKey], map: "forum_posts_author_request_uq")
   @@index([deletedAt, category, createdAt, id], map: "forum_posts_public_created_idx")
   @@index([authorId, deletedAt, createdAt, id], map: "forum_posts_author_created_idx")
+  @@index([circleId, deletedAt, createdAt, id], map: "forum_posts_circle_created_idx")
   @@map("forum_posts")
 }
 

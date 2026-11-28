@@ -1,3 +1,4 @@
+import { CircleParam, CircleView, CommunityService } from './CommunityService';
 import { image } from '@kit.ImageKit';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { SessionService } from '../../core/auth/SessionService';
@@ -76,6 +77,10 @@ struct PendingForumImageView {
 /** 发布与图片恢复：savedId 之后只续传，绝不重复建帖。 */
 @Component
 export struct ForumComposePage {
+  param: CircleParam = { circleId: '' };
+  @State circles: CircleView[] = [];
+  @State circlesError: string = '';
+  @State circleId: string = '';
   onSaved: (postId: string) => void = () => {};
   onSessionExpired: () => void = () => {};
   onBack: () => void = () => {};
@@ -99,6 +104,8 @@ export struct ForumComposePage {
   private previousKeyboardMode: KeyboardAvoidMode = 0;
 
   aboutToAppear(): void {
+    this.circleId = this.param.circleId;
+    this.loadCircles();
     this.onRegisterBackHandler((): boolean => this.requestBack());
   }
 
@@ -106,6 +113,32 @@ export struct ForumComposePage {
     this.restoreKeyboardMode();
     this.onRegisterBackHandler((): boolean => false);
     this.disposed = true;
+  }
+
+  private circleOptions(): SelectOption[] {
+    const options: SelectOption[] = [{ value: '不选择圈子' }];
+    this.circles.filter((item: CircleView) => !item.archived).forEach((item: CircleView) => { options.push({ value: item.name }); });
+    return options;
+  }
+
+  private async loadCircles(): Promise<void> {
+    const stamp: string = SessionService.sessionStamp();
+    this.circlesError = '';
+    try {
+      let page: number = 1;
+      let totalPages: number = 1;
+      let circles: CircleView[] = [];
+      while (page <= totalPages) {
+        const result = await CommunityService.circles(page, true);
+        if (this.disposed || stamp !== SessionService.sessionStamp()) return;
+        circles = circles.concat(result.items);
+        totalPages = result.pagination.totalPages;
+        page += 1;
+      }
+      this.circles = circles;
+    } catch (error) {
+      if (!this.disposed && stamp === SessionService.sessionStamp()) this.circlesError = (error as ApiRequestError).message || '读取圈子失败';
+    }
   }
 
   private resizeForKeyboard(): void {
@@ -197,6 +230,10 @@ export struct ForumComposePage {
   private validate(): boolean {
     const title: string = this.title.trim();
     const body: string = this.body.trim();
+    if (this.circleId !== '' && !this.circles.some((item: CircleView) => item.id === this.circleId && !item.archived)) {
+      this.errorText = '所选圈子不可用，请重新选择或刷新圈子';
+      return false;
+    }
     if (title === '' || title.length > 120) {
       this.errorText = '标题需为 1–120 字';
       return false;
@@ -227,6 +264,7 @@ export struct ForumComposePage {
           body: this.body.trim(),
           createRequestKey: this.createRequestKey
         };
+        if (this.circleId !== '') draft.circleId = this.circleId;
         const created: ForumPostView = await ForumService.createPost(draft);
         if (this.disposed || SessionService.sessionStamp() !== sessionStamp) return;
         id = created.id;
@@ -294,7 +332,7 @@ export struct ForumComposePage {
           (this.createRequestKey !== '' ? '发布结果尚未确认，继续留在这里可以安全重试；退出后无法恢复本次编辑。' :
           '离开后当前内容与已选图片将丢失。'))
           .fontSize(14).fontColor(FORUM_SECONDARY).lineHeight(22).width('100%')
-        Button('继续编辑').width('100%').height(46).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+        Button('继续编辑').width('100%').height(46).backgroundColor(FORUM_ACCENT).fontColor(Color.White)
           .onClick(() => { this.leaveConfirmOpen = false; })
         Button(this.savedId !== '' ? '退出并查看帖子' : '放弃并退出')
           .width('100%').height(42).backgroundColor('#F2F3F5').fontColor('#B04438')
@@ -314,7 +352,7 @@ export struct ForumComposePage {
       Text('发布帖子').fontSize(18).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).layoutWeight(1)
       Button(this.submitting ? '发布中…' : (this.savedId !== '' ? '继续上传' :
         (this.createRequestKey !== '' ? '重试发布' : '发布')))
-        .fontSize(14).height(38).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+        .fontSize(14).height(38).backgroundColor(FORUM_ACCENT).fontColor(Color.White)
         .enabled(!this.submitting && !this.picking).onClick(() => { this.submit(); })
     }.width('100%').height(56).padding({ left: 16, right: 16 }).backgroundColor(FORUM_SURFACE)
   }
@@ -334,12 +372,21 @@ export struct ForumComposePage {
         Scroll() {
           Column({ space: 16 }) {
             Column({ space: 14 }) {
+              Text('选择圈子（可选）').fontSize(13).fontColor(FORUM_SECONDARY).width('100%')
+              Select(this.circleOptions())
+                .value(this.circles.find((item: CircleView) => item.id === this.circleId)?.name ?? (this.circleId === '' ? '不选择圈子' : '正在读取所选圈子'))
+                .enabled(this.savedId === '' && !this.submitting)
+                .onSelect((index: number) => { const available = this.circles.filter((item: CircleView) => !item.archived); this.circleId = index === 0 ? '' : available[index - 1].id; })
+              if (this.circlesError !== '') {
+                Text(this.circlesError).fontSize(13).fontColor('#B04438')
+                Button('重新加载圈子').onClick(() => { this.loadCircles(); })
+              }
               Text('选择分类').fontSize(13).fontColor(FORUM_SECONDARY).width('100%')
               Row({ space: 8 }) {
                 ForEach([FORUM_CATEGORY_GENERAL, FORUM_CATEGORY_EXPERIENCE, FORUM_CATEGORY_QUESTION], (name: string) => {
                   Button(forumCategoryLabel(name)).fontSize(13).height(36)
                     .backgroundColor(this.category === name ? FORUM_ACCENT : '#F2F3F5')
-                    .fontColor(this.category === name ? FORUM_INK : FORUM_SECONDARY)
+                    .fontColor(this.category === name ? Color.White : FORUM_SECONDARY)
                     .enabled(!this.submitting && this.savedId === '' && this.createRequestKey === '')
                     .onClick(() => { this.category = name; })
                 })

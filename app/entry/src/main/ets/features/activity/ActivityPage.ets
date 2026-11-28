@@ -1,3 +1,4 @@
+import { ForumCirclesPage } from '../forum/ForumCirclesPage';
 import { ApiClient, ApiRequestError } from '../../core/network/ApiClient';
 import { ApiConfig } from '../../core/network/ApiConfig';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
@@ -24,6 +25,11 @@ interface RepairActivity {
 export struct ActivityPage {
   onOpen: (route: string, param: Object | null) => void = () => {};
   onLogin: () => void = () => {};
+  onRequireLogin: () => void = () => {};
+  onRequireFollowLogin: () => void = () => {};
+  onChanged: () => void = () => {};
+  @Prop authenticated: boolean = false;
+  @Prop canManage: boolean = false;
   onSessionExpired: () => void = () => {};
   @Link channel: string;
   @State query: string = '';
@@ -131,7 +137,7 @@ export struct ActivityPage {
   @Builder
   channelHeader() {
     Row({ space: 20 }) {
-      ForEach(['活动', '论坛'], (name: string) => {
+      ForEach(['推荐', '关注', '圈子', '活动'], (name: string) => {
         Button({ type: ButtonType.Normal }) {
           Column({ space: 5 }) {
             Text(name).fontSize(this.channel === name ? 22 : 18)
@@ -141,10 +147,10 @@ export struct ActivityPage {
           }.height(52).justifyContent(FlexAlign.Center)
         }.height(52).backgroundColor(Color.Transparent).borderRadius(0).padding(0)
           .accessibilityText(`${name}${this.channel === name ? '，已选中' : ''}`)
-          .onClick(() => { this.channel = name; })
+          .onClick(() => { if (name === '关注' && !this.authenticated) { this.onRequireFollowLogin(); return; } this.channel = name; })
       })
       Blank().layoutWeight(1)
-      if (this.channel === '论坛') {
+      if ((this.channel === '推荐' || this.channel === '关注')) {
         Button({ type: ButtonType.Normal }) {
           Image($r('app.media.home_search')).width(22).height(22)
         }.width(44).height(48).padding(0).backgroundColor(Color.Transparent)
@@ -155,22 +161,32 @@ export struct ActivityPage {
           .accessibilityText('发布帖子').onClick(this.onLogin)
       }
     }.height(56).width('100%').padding({ left: 16, right: 8 })
-      .backgroundColor(this.channel === '论坛' ? FORUM_SURFACE : REFERENCE_BACKGROUND)
+      .backgroundColor((this.channel === '推荐' || this.channel === '关注') ? FORUM_SURFACE : REFERENCE_BACKGROUND)
   }
 
   build() {
     Column() {
-      if (this.channel !== '论坛' || !this.forumSearching) {
+      if ((this.channel !== '推荐' && this.channel !== '关注') || !this.forumSearching) {
         this.channelHeader()
+      }
+      if (this.channel === '推荐' && !this.forumSearching) {
+        Row({ space: 12 }) {
+          Button('全部圈子').fontColor(FORUM_ACCENT).backgroundColor('#EAF1FA').onClick(() => { this.channel = '圈子'; })
+          Button('每日打卡').fontColor(FORUM_ACCENT).backgroundColor('#FFF3E4').onClick(() => { this.onOpen('community-checkin', null); })
+        }.width('100%').padding({ left: 16, right: 16, bottom: 8 })
       }
       Stack({ alignContent: Alignment.BottomEnd }) {
         Column() { this.activityContent() }
           .width('100%').height('100%').visibility(this.channel === '活动' ? Visibility.Visible : Visibility.None)
         ForumFeed({
-          active: this.channel === '论坛', searching: $forumSearching,
+          active: (this.channel === '推荐' || this.channel === '关注'), searching: $forumSearching,
+          streamChannel: this.channel === '关注' ? 'following' : 'recommended', authenticated: this.authenticated,
+          onRequireLogin: this.onRequireLogin, onChanged: this.onChanged,
           refreshVersion: this.forumRefreshVersion, onOpen: this.onOpen,
           onLogin: this.onLogin, onSessionExpired: this.onSessionExpired
-        }).visibility(this.channel === '论坛' ? Visibility.Visible : Visibility.None)
+        }).visibility((this.channel === '推荐' || this.channel === '关注') ? Visibility.Visible : Visibility.None)
+        ForumCirclesPage({ refreshVersion: this.forumRefreshVersion, authenticated: this.authenticated, canManage: this.canManage,
+          onOpen: this.onOpen, onLogin: this.onRequireLogin, onChanged: this.onChanged }).visibility(this.channel === '圈子' ? Visibility.Visible : Visibility.None)
       }.width('100%').layoutWeight(1)
     }.width('100%').height('100%').backgroundColor(FORUM_BACKGROUND)
   }

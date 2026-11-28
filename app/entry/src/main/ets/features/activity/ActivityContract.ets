@@ -14,6 +14,7 @@ export interface Registration {
 export interface RegistrationLookup extends Registration { editToken: string; editTokenExpiresAt: string; }
 export interface RegistrationActivity { id: string; title: string; location: string | null; activityAt: string; signupClosesAt: string; }
 export interface MyRegistration extends Registration {
+  activityPoints?: number;
   activity: RegistrationActivity; checkedInAt: string | null; servedAt: string | null; canEditIssueType: boolean;
 }
 export interface SignupInput {

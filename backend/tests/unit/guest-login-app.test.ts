@@ -14,6 +14,7 @@ interface HomeShell {
   currentTab: number;
   pathStack: { names: string[]; getAllPathName(): string[] };
   openRoute(route: string, param: object | null): void;
+  requestLoginOnCurrentPage(): void;
   onPasswordChanged(): void;
   selectNavigation(index: number): void;
   canChangeTab(index: number): boolean;
@@ -289,4 +290,21 @@ test("改密成功后复位强制标记：强制状态随改密结束", () => {
   page.onPasswordChanged();
   // 改密成功即强制状态终结；复位后用户之后自愿进入改密页不会被返回键困住。
   assert.equal(page.passwordChangeForced, false);
+});
+
+test("公开圈子和打卡页登录后保留当前页面，改密守卫仍生效", () => {
+  for (const route of ["forum-circle", "community-checkin"]) {
+    const page = shell();
+    page.openRoute(route, { circleId: "circle-1" });
+    page.requestLoginOnCurrentPage();
+    assert.equal(page.pathStack.names.join(","), route + ",login");
+    page.completeLogin({ home: "CUSTOMER" });
+    assert.equal(page.pathStack.names.join(","), route);
+
+    const locked = shell();
+    locked.authenticated = true;
+    locked.mustChangePassword = true;
+    locked.openRoute(route, null);
+    assert.equal(locked.pathStack.names.join(","), "password-change");
+  }
 });

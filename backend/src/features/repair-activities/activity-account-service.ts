@@ -70,7 +70,8 @@ export const activityAccountService = {
       include,
     });
     if (!row) throw new AppError("ACTIVITY_REGISTRATION_NOT_FOUND", "报名记录不存在或不可访问");
-    return view(row);
+    const reward = await getDb().communityActivityReward.findUnique({ where: { userId_activityId: { userId: actor.userId!, activityId } } });
+    return { ...view(row), activityPoints: reward?.awarded ? 10 : 0 };
   },
   async update(activityId: string, id: string, issue: unknown, actor: AuthorizedActor) {
     const issueType = assertValidIssueType(issue);
