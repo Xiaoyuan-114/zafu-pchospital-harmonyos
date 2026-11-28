@@ -2,25 +2,18 @@ import { WorkbenchSummary } from '../repair/WorkbenchSummary';
 import { ROUTE_STAFF_ACTIVITIES, ROUTE_MANAGEMENT } from '../../core/ui/Routes';
 import { HOME_STAFF } from '../../core/auth/AuthContract';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
-import { RepairOrderFocusParam, ROUTE_CASE_LIBRARY, ROUTE_KNOWLEDGE_LIBRARY, ROUTE_KNOWLEDGE_SEARCH, ROUTE_PUBLIC_CASES, ROUTE_PUBLIC_GUIDES, ROUTE_KNOWLEDGE, ROUTE_REPAIR_ORDERS, ROUTE_STAFF_ORDERS, ROUTE_STAFF_REVIEW } from '../../core/ui/Routes';
+import { DeviceFocusParam, ROUTE_CASE_LIBRARY, ROUTE_DEVICE_DETAIL, ROUTE_DIAGNOSTIC, ROUTE_KNOWLEDGE_LIBRARY, ROUTE_KNOWLEDGE_SEARCH, ROUTE_MY_DEVICES, ROUTE_PUBLIC_CASES, ROUTE_PUBLIC_GUIDES, ROUTE_KNOWLEDGE, ROUTE_REPAIR_ORDERS, ROUTE_STAFF_ORDERS, ROUTE_STAFF_REVIEW } from '../../core/ui/Routes';
 import { ReferenceBanner, ReferenceTitle, ReferenceShortcut, REFERENCE_BACKGROUND } from '../../core/ui/ReferencePage';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
 import { isNetworkErrorCode } from '../knowledge/KnowledgeFlow';
-import { RepairOrderView, repairOrderStatusLabel } from '../repair/RepairOrderContract';
-import { RepairOrderService } from '../repair/RepairOrderService';
+import { DeviceView, deviceStatusLabel } from '../devices/DeviceContract';
+import { DeviceService } from '../devices/DeviceService';
 
 /** 设备卡区块的加载状态（四态，与 StatePanel 配套）。 */
 const DEVICE_LOADING: number = 0;
 const DEVICE_READY: number = 1;
 const DEVICE_EMPTY: number = 2;
 const DEVICE_ERROR: number = 3;
-
-/** 我的设备列表项：从本人报修单的 deviceModel 派生，附最近一张单的状态。 */
-interface DeviceItem {
-  model: string;
-  orderId: string;
-  status: string;
-}
 
 interface ServiceEntry {
   title: string;
@@ -34,15 +27,19 @@ interface ServiceEntry {
 
 function serviceEntries(): ServiceEntry[] {
   return [
-    { title: 'AI 故障问诊', note: '故障定位与排查', icon: $r('app.media.ref_shield'), hue: 'orange', route: ROUTE_KNOWLEDGE, ready: true },
+    { title: '故障问诊', note: '按症状归类，给处理建议', icon: $r('app.media.ref_shield'), hue: 'orange', route: ROUTE_DIAGNOSTIC, ready: true },
     { title: '我要报修', note: '提交电脑故障', icon: $r('app.media.ref_repair'), hue: 'blue', route: ROUTE_REPAIR_ORDERS, ready: true },
     { title: '报修进度', note: '查看处理进度', icon: $r('app.media.ref_cooling'), hue: 'green', route: ROUTE_REPAIR_ORDERS, ready: true },
     { title: '维修指南', note: '查阅公开维修指南', icon: $r('app.media.ref_system'), hue: 'purple', route: ROUTE_PUBLIC_GUIDES, ready: true }
   ];
 }
 
-/** 服务主页面对照④：真实报修设备卡、两列功能卡、主题横幅与快捷入口。
- * 工作人员使用同一外观展示工作台；设备不是独立绑定数据。
+/** 服务主页面对照④：真实绑定设备卡、两列功能卡、主题横幅与快捷入口。
+ * 工作人员使用同一外观展示工作台。
+ *
+ * 设备自 Issue #102 起是**独立绑定数据**（客户自己在「我的设备」里填），
+ * 不再从报修单的 `deviceModel` 反推 —— 反推会把同一机型的两台机器并成一条，
+ * 也看不到没报修过的设备。
  */
 @Component
 export struct ServicePage {
@@ -58,7 +55,7 @@ export struct ServicePage {
   onSessionExpired: () => void = () => {
   };
   @State deviceState: number = DEVICE_LOADING;
-  @State devices: DeviceItem[] = [];
+  @State devices: DeviceView[] = [];
   @State deviceErrorText: string = '';
   /** 列表请求进行中标记：防止重试按钮连点触发并发请求。 */
   private requesting: boolean = false;
@@ -127,7 +124,7 @@ export struct ServicePage {
     }
   }
 
-  /** 拉本人报修单并派生去重设备列表：同一机型只保留最近一张单的状态。 */
+  /** 拉本人设备列表（已绑定），用于首页设备卡。 */
   private async loadDevices(): Promise<void> {
     if (this.requesting) {
       return;
@@ -137,26 +134,10 @@ export struct ServicePage {
     this.deviceState = DEVICE_LOADING;
     this.deviceErrorText = '';
     try {
-      const items = await RepairOrderService.listMine('', 1);
+      const items: DeviceView[] = await DeviceService.listMine();
       if (generation !== this.deviceGeneration) return;
-      const derived: DeviceItem[] = [];
-      for (const order of items) {
-        if (order.deviceModel === '') {
-          continue;
-        }
-        let seen: boolean = false;
-        for (const device of derived) {
-          if (device.model === order.deviceModel) {
-            seen = true;
-            break;
-          }
-        }
-        if (!seen) {
-          derived.push({ model: order.deviceModel, orderId: order.id, status: order.status });
-        }
-      }
-      this.devices = derived;
-      this.deviceState = derived.length === 0 ? DEVICE_EMPTY : DEVICE_READY;
+      this.devices = items;
+      this.deviceState = items.length === 0 ? DEVICE_EMPTY : DEVICE_READY;
     } catch (error) {
       if (generation !== this.deviceGeneration) return;
       this.deviceState = DEVICE_ERROR;
@@ -180,25 +161,28 @@ export struct ServicePage {
     this.onOpen(entry.route, null);
   }
 
-  private openOrder(orderId: string): void {
-    const focus: RepairOrderFocusParam = { orderId: orderId };
-    this.onOpen(ROUTE_REPAIR_ORDERS, focus);
+  /** 打开设备详情（权益查询）。入口只有已绑定设备，故只需设备 ID。 */
+  private openDevice(deviceId: string): void {
+    const focus: DeviceFocusParam = { deviceId: deviceId };
+    this.onOpen(ROUTE_DEVICE_DETAIL, focus);
   }
 
 
   @Builder
-  deviceCard(device: DeviceItem) {
+  deviceCard(device: DeviceView) {
     Row({ space: 18 }) {
       Image($r('app.media.ref_laptop_hero')).width(96).height(106).objectFit(ImageFit.Contain)
       Column({ space: 10 }) {
-        Text('最近报修设备').fontSize(11).fontColor('#747A7F')
-        Text(device.model).fontSize(19).fontWeight(FontWeight.Bold).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(repairOrderStatusLabel(device.status)).fontSize(12).fontColor('#477886')
+        Text('我的设备').fontSize(11).fontColor('#747A7F')
+        Text(device.label).fontSize(19).fontWeight(FontWeight.Bold).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(`${device.brand} ${device.model}`).fontSize(12).fontColor('#6D757B').maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(deviceStatusLabel(device.status)).fontSize(12).fontColor('#477886')
           .padding({ left: 9, right: 9, top: 4, bottom: 4 }).backgroundColor('#F2F6F8').borderRadius(16)
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       Text('›').fontSize(26).fontColor('#92989D')
     }.width('100%').height(136).padding(16).backgroundColor(Color.White).borderRadius(20)
-      .onClick(() => { this.openOrder(device.orderId); })
+      .onClick(() => { this.openDevice(device.id); })
   }
 
   @Builder
@@ -214,7 +198,7 @@ export struct ServicePage {
         }.layoutWeight(1).alignItems(HorizontalAlign.Start)
       }.width('100%').height(136).padding(18).backgroundColor(Color.White).borderRadius(20)
     } else if (this.authenticated && this.deviceState === DEVICE_LOADING) {
-      Column() { LoadingPanel({ text: '正在加载报修设备…' }) }
+      Column() { LoadingPanel({ text: '正在加载我的设备…' }) }
         .width('100%').height(136).backgroundColor(Color.White).borderRadius(20)
     } else if (this.authenticated && this.deviceState === DEVICE_ERROR) {
       Column() {
@@ -222,17 +206,18 @@ export struct ServicePage {
       }.width('100%').backgroundColor(Color.White).borderRadius(20)
     } else if (this.authenticated && this.deviceState === DEVICE_READY) {
       Swiper() {
-        ForEach(this.devices, (device: DeviceItem) => { this.deviceCard(device); }, (device: DeviceItem) => device.orderId)
+        ForEach(this.devices, (device: DeviceView) => { this.deviceCard(device); }, (device: DeviceView) => device.id)
       }.height(136).width('100%').loop(false).indicator(false)
     } else {
       Row({ space: 14 }) {
         Image($r('app.media.ref_laptop_hero')).width(98).height(108).objectFit(ImageFit.Contain)
         Column({ space: 8 }) {
-          Text(this.authenticated ? '暂无报修设备' : '我的电脑').fontSize(21).fontWeight(FontWeight.Bold)
-          Text(this.authenticated ? '提交报修后，这里展示设备与进度' : '登录查看自己的报修设备与进度').fontSize(12).fontColor('#737B81')
-          Button(this.authenticated ? '去报修' : '登录查看').fontSize(12).height(30)
+          Text(this.authenticated ? '还没有绑定设备' : '我的电脑').fontSize(21).fontWeight(FontWeight.Bold)
+          Text(this.authenticated ? '绑定后可在这里查看保修权益与关联报修' : '登录后绑定设备，查看权益与报修进度')
+            .fontSize(12).fontColor('#737B81')
+          Button(this.authenticated ? '去绑定设备' : '登录查看').fontSize(12).height(30)
             .fontColor('#2877D9').backgroundColor('#F0F6FD')
-            .onClick(() => { this.onOpen(ROUTE_REPAIR_ORDERS, null); })
+            .onClick(() => { this.onOpen(ROUTE_MY_DEVICES, null); })
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%').height(136).padding(16).backgroundColor(Color.White).borderRadius(20)
     }
@@ -314,13 +299,18 @@ export struct ServicePage {
         }
         Text('快捷服务').fontSize(20).fontWeight(FontWeight.Bold).margin({ top: 15 })
         Row() {
-          ReferenceShortcut({ title: '故障问诊', icon: $r('app.media.ref_shield'), onSelect: (): void => { this.onOpen(ROUTE_KNOWLEDGE, null); } })
+          if (this.home === HOME_STAFF) {
+            ReferenceShortcut({ title: '故障问诊', icon: $r('app.media.ref_shield'), onSelect: (): void => { this.onOpen(ROUTE_DIAGNOSTIC, null); } })
+          } else {
+            // 客户侧「故障问诊」已在上方功能卡里，这里换成设备入口（Issue #102）。
+            ReferenceShortcut({ title: '我的设备', icon: $r('app.media.reading_laptop'), onSelect: (): void => { this.onOpen(ROUTE_MY_DEVICES, null); } })
+          }
           ReferenceShortcut({ title: this.home === HOME_STAFF ? '报修工作台' : '服务进度', icon: $r('app.media.ref_cooling'), onSelect: (): void => { this.onOpen(this.home === HOME_STAFF ? ROUTE_STAFF_ORDERS : ROUTE_REPAIR_ORDERS, null); } })
           ReferenceShortcut({ title: '维修指南', icon: $r('app.media.ref_system'), onSelect: (): void => { this.onOpen(ROUTE_PUBLIC_GUIDES, null); } })
           ReferenceShortcut({ title: '近期活动', icon: $r('app.media.ref_activity'), onSelect: this.onActivities })
         }.width('100%')
         if (this.authenticated && this.home !== HOME_STAFF) {
-          Text('设备根据最近一页（最多 20 条）本人报修单的机型展示。').fontSize(10).fontColor('#8C949A')
+          Text('设备由你本人绑定；保修权益由门店工作人员登记，登记后才在设备详情里显示。').fontSize(10).fontColor('#8C949A')
           Button('刷新设备记录').fontSize(12).backgroundColor('#E9EFF4').fontColor('#596874')
             .enabled(!this.requesting).onClick(() => { this.loadDevices(); })
         }

@@ -49,6 +49,11 @@ export const ROUTE_SERVICE: string = 'service';
  */
 export interface RepairOrderFocusParam {
   orderId: string;
+  /**
+   * 从设备详情页「报修这台设备」进来时带上的设备 ID（Issue #102）。
+   * 普通入口不传：`orderId` 空串 + 无 `deviceId` 即「直接打开报修表单之外的默认列表」。
+   */
+  deviceId?: string;
 }
 
 /**
@@ -81,6 +86,30 @@ export const ROUTE_STAFF_REVIEW: string = 'staff-repair-review';
 /** 典型案例库与案例详情（Issue #40，知识回流）。 */
 export const ROUTE_CASE_LIBRARY: string = 'knowledge-case-library';
 export const ROUTE_CASE_DETAIL: string = 'knowledge-case-detail';
+
+/**
+ * 客户：我的设备（Issue #102）。
+ *
+ * 设备是客户自己填的绑定记录，与「我的报修」是两个列表：
+ * 报修单是一次故障申报，设备是一台机器的长期档案（含权益）。
+ * 详情页参数只需设备 ID，权益与最近报修都由后端按 ID 现取。
+ */
+export const ROUTE_MY_DEVICES: string = 'my-devices';
+export const ROUTE_DEVICE_DETAIL: string = 'device-detail';
+export interface DeviceFocusParam {
+  deviceId: string;
+}
+
+/**
+ * 客户：检测与帮助（Issue #102）。
+ *
+ * 症状问答是「按描述归类」，不是硬件检测。带 `deviceId` 进入时，
+ * 结果页可以直接跳到这台设备的权益或报修；不带也能单独问诊。
+ */
+export const ROUTE_DIAGNOSTIC: string = 'diagnostic';
+export interface DiagnosticFocusParam {
+  deviceId: string;
+}
 
 /**
  * 子页标题的唯一来源：HomePage 的 navDestination 统一用 NavDestination 包裹各页面，
@@ -155,6 +184,15 @@ export function routeTitle(name: string): string {
   }
   if (name === ROUTE_CASE_DETAIL) {
     return '案例详情';
+  }
+  if (name === ROUTE_MY_DEVICES) {
+    return '我的设备';
+  }
+  if (name === ROUTE_DEVICE_DETAIL) {
+    return '设备与权益';
+  }
+  if (name === ROUTE_DIAGNOSTIC) {
+    return '检测与帮助';
   }
   return name;
 }

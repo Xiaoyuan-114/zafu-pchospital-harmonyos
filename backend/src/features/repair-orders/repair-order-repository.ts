@@ -88,6 +88,8 @@ export const repairOrderRepository = {
     status: string;
     createRequestKey: string;
     now: Date;
+    /** 关联的客户设备（#102）；历史行为下为 null。 */
+    deviceId?: string | null;
   }) {
     const db = getDb();
     await db.$transaction([
@@ -102,6 +104,7 @@ export const repairOrderRepository = {
           status: input.status,
           lastProgressAt: input.now,
           createRequestKey: input.createRequestKey,
+          deviceId: input.deviceId ?? null,
           createdAt: input.now,
           updatedAt: input.now,
         },

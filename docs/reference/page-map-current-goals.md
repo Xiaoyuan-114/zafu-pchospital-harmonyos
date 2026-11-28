@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | [首页](my-huawei/home-navigation.jpg) | 首页 | 底栏第 1 栏 | 已还原：大标题、搜索、金色主视觉、快捷卡与进行中报修；新增选购切栏和论坛频道真实入口 | 搜索仍只指向公开维修指南，不做假全局搜索；入口只切真实页面，不聚合伪造结果 |
 | [花粉](my-huawei/community-huafen-feed.jpg) | 活动＋论坛 | 底栏第 2 栏 | 活动/论坛双频道；真实分类/搜索/分页列表、详情、评论、删除、发帖、我的帖子 | 公告、点赞、关注未接入；相册选图上传与活动报名实机复验有环境缺口，详见验证记录 |
-| [服务](my-huawei/service-my-products-repair-entry.jpg)、[检测与帮助](my-huawei/service-diagnostics-help.jpg) | 服务 / 工作台 | 底栏第 3 栏 | 客户：设备卡（本人报修派生）、AI 问诊/我要报修/报修进度/维修指南四张卡、**新增「知识与帮助」**、精选服务与快捷服务；工作人员：工作台卡、报修工作台/知识问答/典型案例库、成员活动、管理、备案审核/维修备案 | 设备卡是报修单 `deviceModel` 派生，不是独立设备绑定接口；无保修权益数据 |
+| [服务](my-huawei/service-my-products-repair-entry.jpg)、[检测与帮助](my-huawei/service-diagnostics-help.jpg) | 服务 / 工作台 | 底栏第 3 栏 | 客户：**我的设备卡（独立绑定，不再是报修单派生）**、故障问诊/我要报修/报修进度/维修指南四张卡、「知识与帮助」、精选服务与快捷服务；工作人员：工作台卡、报修工作台/知识问答/典型案例库、成员活动、管理、备案审核/维修备案 | 设备由客户手填绑定，权益由门店工作人员登记（客户只读）；工作台侧暂无权益登记页面，见 #102 验证记录 |
 | [选购](my-huawei/shopping-category-navigation.jpg)、[订单空态](my-huawei/shopping-orders-empty-state.jpg) | 选购 | 底栏第 4 栏（游客可进） | 已交付真实交易：分类/关键词列表（分页）、商品详情、发布/编辑、下架、下单、我的购物订单、卖家订单、我发布的商品；数据来自真实接口，空态/失败态如实显示 | 无参考图的页面沿用现有 App 样式（见第 3 节）；购物车、线上支付、配送未做；分类按商品类目字段，不是参考图的完整频道 |
 | [我的](my-huawei/my-account-service-record-entry.jpg)、[账号资料](my-huawei/account-profile-sheet.jpg) | 我的 | 底栏第 5 栏（游客点击先登录） | 资料卡与退出、报修统计（注明口径）；入口按维修服务/校园交易/交流/账号与工作分组；客户与工作人员均有我的帖子 | 「维修记录」仍标「暂未接入」；权限、服务端身份与报修/备案/购物对象边界不变 |
 
@@ -33,7 +33,8 @@
 | [社区搜索结果](my-huawei/search-community-results.jpg) | 知识搜索 `ROUTE_KNOWLEDGE_SEARCH` | 「知识与帮助 → 知识搜索」、目录页放大镜、首页搜索 | 已保留，游客可进 | 只搜公开指南/公开案例，不含成员、商品或帖子 |
 | [升级指南](my-huawei/harmonyos-upgrade-guide.jpg) | 公开维修指南 `ROUTE_PUBLIC_GUIDES` | 「维修指南」卡、目录「全部指南」、精选服务横幅、快捷服务 | 已保留，游客可进 | 指南正文与收藏来自真实接口 |
 | [帖子详情](my-huawei/community-event-post-detail.jpg)、[圈子信息流](my-huawei/community-circle-detail-feed.jpg) | 案例阅读 `ROUTE_PUBLIC_CASES`（客户）/ `ROUTE_CASE_LIBRARY` + `ROUTE_CASE_DETAIL`（工作人员） | 「知识与帮助 → 公开案例 / 典型案例库」 | 已保留；案例按既有规则要求登录，游客点击后登录成功自动续接案例页 | 案例与内部维修备案权限不放宽；不公开备案正文/照片 |
-| 同上（检测与帮助主按钮） | 带来源 AI 问诊 `ROUTE_KNOWLEDGE`（`KnowledgePage`） | 「AI 故障问诊」卡、页面标题耳机按钮、快捷服务「故障问诊」 | 已保留；对话是离开即销毁的子页，引用详情走 `ROUTE_KNOWLEDGE_SOURCE` | 无独立参考图，按服务页主行动按钮定位 |
+| [检测与帮助](my-huawei/service-diagnostics-help.jpg) | 检测与帮助 `ROUTE_DIAGNOSTIC`（`DiagnosticPage`） | 服务页「故障问诊」功能卡、工作人员快捷服务「故障问诊」、设备详情「先测一下是什么问题」 | 已交付：盾牌主视觉 + 「进入检测」主按钮 + 6 类故障分类；选类后答 2 题，结果页给结论、逐条理由与声明 | **是症状问答，不是硬件检测**：主按钮叫「进入检测」但页面写明结论来自所选症状、读不到电池与传感器数据；分类与题目在服务端目录里，不按标题粗分 |
+| 同上（检测与帮助主按钮） | 带来源 AI 问诊 `ROUTE_KNOWLEDGE`（`KnowledgePage`） | 「AI 故障问诊」卡、页面标题耳机按钮 | 已保留；对话是离开即销毁的子页，引用详情走 `ROUTE_KNOWLEDGE_SOURCE` | 与上面的「故障问诊」（症状问答）并列存在：AI 问诊是自由对话，故障分类是固定题目、结论可复现 |
 
 首页旧知识入口全部保留：标题耳机按钮、问诊频道胶囊、AI 问诊快捷卡，以及搜索框进入公开指南；
 它们都仍是子页，不依赖已移除的知识 Tab。

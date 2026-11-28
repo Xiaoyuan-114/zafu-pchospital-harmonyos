@@ -3,6 +3,7 @@ import { AppError } from "@/lib/api/errors";
 import { requirePermission } from "@/lib/auth/permissions";
 import { paginationMeta } from "@/lib/api/pagination";
 import { repairOrderRepository } from "@/features/repair-orders/repair-order-repository";
+import { deviceRepository } from "@/features/devices/device-repository";
 import { assertCanReadRepairOrder } from "@/features/repair-orders/repair-order-policy";
 import { normalizeRepairOrderInput, validateRepairOrderInput } from "@/features/repair-orders/repair-order-validation";
 import { toRepairOrderView } from "@/features/repair-orders/repair-order-view";
@@ -19,6 +20,8 @@ export type RepairOrderSubmitPayload = {
   deviceSerial?: string;
   faultDescription: string;
   contactPhone: string;
+  /** 可选：关联的已绑定设备（Issue #102）；服务端校验归属后才写入。 */
+  deviceId?: string;
 };
 
 export const repairOrderService = {
@@ -39,6 +42,16 @@ export const repairOrderService = {
 
     const normalized = normalizeRepairOrderInput(payload);
     validateRepairOrderInput(normalized);
+
+    // 关联设备（#102）：只有本人名下、未解绑的设备才能挂到报修单上。
+    // 非本人一律 404 —— 与其它读接口同一口径，不让人拿别人的设备 ID 试探。
+    let deviceId: string | null = null;
+    if (normalized.deviceId !== undefined) {
+      const device = await deviceRepository.findById(normalized.deviceId);
+      if (!device || device.deletedAt !== null || device.ownerUserId !== actor.userId)
+        throw new AppError("DEVICE_NOT_FOUND", "设备不存在");
+      deviceId = device.id;
+    }
 
     const requestKey = options.createRequestKey.trim();
     if (requestKey.length > MAX_REQUEST_KEY_LENGTH)
@@ -63,6 +76,7 @@ export const repairOrderService = {
       faultDescription: normalized.faultDescription,
       contactPhone: normalized.contactPhone,
       status: INITIAL_ORDER_STATUS,
+      deviceId,
       // 无幂等键时用随机值占位，满足唯一约束的同时不与任何客户端键冲突。
       createRequestKey: requestKey === "" ? `auto:${randomUUID()}` : requestKey,
       now,

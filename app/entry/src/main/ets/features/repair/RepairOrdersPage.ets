@@ -57,6 +57,11 @@ export struct RepairOrdersPage {
    * 页面打开后直接展开该单的详情进度；普通入口传空串，行为与原来完全一致。
    */
   initialDetailId: string = '';
+  /**
+   * 从设备详情页「报修这台设备」进入时带上设备 ID（Issue #102）：
+   * 页面直接展开报修表单，提交的表单会挂到这台设备上。
+   */
+  initialDeviceId: string = '';
   onBack: () => void = () => {};
   onChanged: () => void = () => {};
   onRegisterBackHandler: (handler: () => boolean) => void = () => {};
@@ -99,6 +104,10 @@ export struct RepairOrdersPage {
     this.load();
     if (this.initialDetailId !== '') {
       this.openDetailById(this.initialDetailId);
+    }
+    if (this.initialDeviceId !== '') {
+      // 从设备页带着设备进来：直接展开表单，用户少点一次。
+      this.showForm = true;
     }
   }
 
@@ -510,7 +519,8 @@ export struct RepairOrdersPage {
         Scroll() {
           Column({ space: 16 }) {
             if (this.showForm) {
-              RepairOrderForm({ onSubmitted: () => this.afterSubmit(),
+              RepairOrderForm({ initialDeviceId: this.initialDeviceId,
+                onSubmitted: () => this.afterSubmit(),
                 submit: (request: RepairOrderSubmitRequest, idempotencyKey: string) => this.submitOrder(request, idempotencyKey),
                 onSessionExpired: () => this.onSessionExpired() })
             }

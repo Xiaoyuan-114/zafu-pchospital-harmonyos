@@ -41,6 +41,12 @@ export interface RepairOrderSubmitRequest {
   deviceSerial?: string;
   faultDescription: string;
   contactPhone: string;
+  /**
+   * 关联的已绑定设备（Issue #102，选填）。
+   * 只传 ID：服务端会校验这台设备确实属于当前账号，不是本人设备一律 400。
+   * 不传表示这条报修没有对应到「我的设备」里的任何一台。
+   */
+  deviceId?: string;
 }
 
 /** 分页元信息：与后端 paginationMeta 对齐。 */

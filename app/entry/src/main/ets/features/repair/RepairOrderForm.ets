@@ -47,6 +47,12 @@ export type FieldErrorMap = Record<string, string>;
  */
 @Component
 export struct RepairOrderForm {
+  /**
+   * 从设备详情页「报修这台设备」进入时带上设备 ID（Issue #102）：
+   * 单据会挂到这台已绑定设备上，详情页的「关联报修」才看得到它。
+   * 普通入口传空串，表示不关联任何设备。
+   */
+  @Prop initialDeviceId: string = '';
   /** 提交成功后由父组件刷新列表并收起表单。 */
   onSubmitted: () => Promise<void> = async () => {
   };
@@ -151,6 +157,10 @@ export struct RepairOrderForm {
       if (serial !== '') {
         request.deviceSerial = serial;
       }
+      // 关联设备同样选填：只有从设备页带过来的 ID 才传，普通报修不挂设备。
+      if (this.initialDeviceId !== '') {
+        request.deviceId = this.initialDeviceId;
+      }
       await this.submit(request, this.idempotencyKey);
       // 成功：换一个新键，清空表单，让下一次提交是新的一张单。
       this.idempotencyKey = `app-${util.generateRandomUUID(true)}`;
@@ -218,6 +228,14 @@ export struct RepairOrderForm {
         .fontColor($r('app.color.text_primary'))
         .width('100%')
         .textAlign(TextAlign.Start)
+
+      if (this.initialDeviceId !== '') {
+        Text('本次报修会关联到刚才那台设备，提交后可在设备详情的「关联报修」里看到进度。')
+          .fontSize(FONT_NOTE)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+          .textAlign(TextAlign.Start)
+      }
 
       this.labeledInput('设备机型（必填）', '如 ThinkPad X1 Carbon', this.deviceModel, 'deviceModel', (v: string) => {
         this.deviceModel = v;

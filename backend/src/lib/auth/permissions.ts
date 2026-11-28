@@ -18,6 +18,14 @@ import type { AuthorizedActor, Permission, RoleCode } from "@/types/contracts";
 export const customerPermissions: readonly Permission[] = [
   "repair.order:create",
   "repair.order:read",
+  // 设备与权益（Issue #102）：客户只能管理自己的设备、读自己的权益。
+  // 保修由工作人员登记，客户没有 `benefit:write`，不能自证权益。
+  "device:read_self",
+  "device:manage_self",
+  "benefit:read_self",
+  // 检测只写/读本人记录，客户与工作人员一视同仁。
+  "diagnostic:run_self",
+  "diagnostic:read_self",
 ];
 
 export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> = {
@@ -43,6 +51,12 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     // 维修队耗材属于工作人员维护范围（#84）；二手商品任何登录用户都可发布，
     // 不需要权限码，因此这里只加耗材维护。
     "shopping.consumable:manage",
+    // 设备与权益（#102）：受理报修时需要核对设备信息，到店时可为客户登记保修。
+    // 工作人员**不能**改客户设备（`device:manage_self` 未授予），也不能作废保修。
+    "device:read",
+    "benefit:write",
+    "diagnostic:run_self",
+    "diagnostic:read_self",
   ],
   ADMIN: [
     "join:read",
@@ -88,6 +102,12 @@ export const rolePermissions: Readonly<Record<RoleCode, readonly Permission[]>> 
     // 论坛管理权限只给 ADMIN，MEMBER 不因工作人员身份获得跨作者删除权。
     "forum:moderate",
     "forum.circle:manage",
+    // 设备与权益（#102）：管理员可查全部客户设备、登记保修并作废填错的权益。
+    "device:read",
+    "benefit:write",
+    "diagnostic:run_self",
+    "diagnostic:read_self",
+    "benefit:void",
   ],
 };
 

@@ -133,6 +133,15 @@ export const ApiErrorCode = [
   "FORUM_IMAGE_TYPE_UNSUPPORTED",
   "FORUM_IMAGE_TOO_LARGE",
   "FORUM_IMAGE_STORAGE_FAILED",
+  // Issue #102 设备与权益：设备不存在/非本人（统一 404，避免枚举）、
+  // 同账号序列号冲突、设备仍有进行中报修不能解绑、权益不存在。
+  // 作废是幂等的，没有「状态不允许」这类错误，故不设 BENEFIT_STATE_INVALID。
+  "DEVICE_NOT_FOUND",
+  "DEVICE_SERIAL_CONFLICT",
+  "DEVICE_IN_USE",
+  "BENEFIT_NOT_FOUND",
+  // 检测记录：不存在或不属于本人（统一 404，理由同设备）。
+  "DIAGNOSTIC_SESSION_NOT_FOUND",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -185,6 +194,11 @@ const defaultStatus: Record<ApiErrorCode, number> = {
   REPAIR_ORDER_NOT_FOUND: 404,
   REPAIR_ORDER_STATE_INVALID: 409,
   REPAIR_ORDER_STATE_CONFLICT: 409,
+  DEVICE_NOT_FOUND: 404,
+  DEVICE_SERIAL_CONFLICT: 409,
+  DEVICE_IN_USE: 409,
+  BENEFIT_NOT_FOUND: 404,
+  DIAGNOSTIC_SESSION_NOT_FOUND: 404,
   // 不存在、软删除、非有效成员与无权访问统一走 404，避免成员枚举（M3 任务书 §8、§11）
   MEMBER_PROFILE_NOT_FOUND: 404,
   MEMBER_PROFILE_FORBIDDEN: 403,
