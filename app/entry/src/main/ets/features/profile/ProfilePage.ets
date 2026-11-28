@@ -126,6 +126,8 @@ export struct ProfilePage {
       { title: '我发布的商品', icon: $r('app.media.ref_grid'), note: '', route: ROUTE_SHOPPING_MY_PRODUCTS },
       { title: '卖家订单', icon: $r('app.media.ref_message'), note: '', route: ROUTE_SHOPPING_SELLER_ORDERS },
       { title: '我的帖子', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MY_FORUM_POSTS },
+      { title: '我的关注', icon: $r('app.media.ref_profile'), note: '', route: 'forum-following' },
+      { title: '我的积分', icon: $r('app.media.ref_star'), note: '', route: 'community-points' },
       { title: '收藏', icon: $r('app.media.ref_star'), note: '', route: ROUTE_FAVORITES },
       { title: '消息', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MESSAGES },
       { title: '修改密码', icon: $r('app.media.ref_flag'), note: '', route: ROUTE_PASSWORD_CHANGE },
@@ -142,6 +144,8 @@ export struct ProfilePage {
       { title: '我发布的商品', icon: $r('app.media.ref_grid'), note: '', route: ROUTE_SHOPPING_MY_PRODUCTS },
       { title: '卖家订单', icon: $r('app.media.ref_message'), note: '', route: ROUTE_SHOPPING_SELLER_ORDERS },
       { title: '我的帖子', icon: $r('app.media.ref_message'), note: '', route: ROUTE_MY_FORUM_POSTS },
+      { title: '我的关注', icon: $r('app.media.ref_profile'), note: '', route: 'forum-following' },
+      { title: '我的积分', icon: $r('app.media.ref_star'), note: '', route: 'community-points' },
       { title: '收藏', icon: $r('app.media.ref_star'), note: '', route: ROUTE_FAVORITES },
       { title: '个人资料', icon: $r('app.media.ref_profile'), note: '', route: ROUTE_PERSONAL_PROFILE },
       { title: '进入工作台', icon: $r('app.media.ref_document'), note: '', route: ROUTE_STAFF_ORDERS },
@@ -161,7 +165,7 @@ export struct ProfilePage {
   private entryGroup(title: string): string {
     if (title === '个人资料' || title === '修改密码' || title === '消息' || title === '进入工作台' || title === '管理') return '账号与工作';
     if (title === '我的购物订单' || title === '我发布的商品' || title === '卖家订单') return '校园交易';
-    if (title === '我的帖子' || title === '收藏' || title === '我的报名') return '交流';
+    if (title === '我的帖子' || title === '我的关注' || title === '我的积分' || title === '收藏' || title === '我的报名') return '交流';
     return '维修服务';
   }
 

@@ -2,15 +2,10 @@ import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiCli
 import { ApiPage } from '../../core/network/ApiContract';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
 import { ROUTE_FORUM_COMPOSE, ROUTE_FORUM_POST } from '../../core/ui/Routes';
-import { ForumImageView, ForumPostParam, ForumPostView, forumCategoryLabel } from './ForumContract';
+import { ForumImageView, ForumPostParam, ForumPostView, forumCategoryLabel, forumTimeText } from './ForumContract';
 import { ForumService } from './ForumService';
 import { ForumPostImage } from './ForumFeed';
 import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK, FORUM_MUTED, FORUM_SECONDARY, FORUM_SURFACE } from './ForumTheme';
-
-function mineTimeText(value: string): string {
-  const time: Date = new Date(new Date(value).getTime() + 8 * 3600000);
-  return `${time.getUTCFullYear()}-${(time.getUTCMonth() + 1).toString().padStart(2, '0')}-${time.getUTCDate().toString().padStart(2, '0')} ${time.getUTCHours().toString().padStart(2, '0')}:${time.getUTCMinutes().toString().padStart(2, '0')}`;
-}
 
 /** 本人帖子：作者范围只由服务端会话确定，不传 authorId。 */
 @Component
@@ -138,7 +133,7 @@ export struct MyForumPostsPage {
       Row({ space: 8 }) {
         Image($r('app.media.forum_avatar')).width(26).height(26).accessibilityText('默认头像')
         Text(item.author.displayName).fontSize(13).fontColor(FORUM_SECONDARY).layoutWeight(1)
-        Text(mineTimeText(item.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
+        Text(forumTimeText(item.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
       }.width('100%')
       Text(item.title).fontSize(18).fontWeight(FontWeight.Bold).fontColor(FORUM_INK).lineHeight(25)
         .width('100%').maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -192,7 +187,7 @@ export struct MyForumPostsPage {
           Image($r('app.media.forum_comment')).width(36).height(36)
           Text('还没有发布帖子').fontSize(17).fontWeight(FontWeight.Medium).fontColor(FORUM_INK)
           Text('分享你的经验，或向大家提问。').fontSize(13).fontColor(FORUM_MUTED)
-          Button('发布帖子').height(40).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK)
+          Button('发布帖子').height(40).backgroundColor(FORUM_ACCENT).fontColor(Color.White)
             .onClick(() => { this.onOpen(ROUTE_FORUM_COMPOSE, null); })
         }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else {

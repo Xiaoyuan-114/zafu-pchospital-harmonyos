@@ -6,6 +6,8 @@ export const FORUM_CATEGORY_QUESTION: string = 'QUESTION';
 export interface ForumAuthorView {
   id: string;
   displayName: string;
+  following?: boolean;
+  canFollow?: boolean;
 }
 
 export interface ForumImageView {
@@ -20,7 +22,10 @@ export interface ForumPostActions {
   canComment: boolean;
 }
 
+export interface ForumCircleSummary { id: string; name: string; archived: boolean; }
+
 export interface ForumPostView {
+  circle?: ForumCircleSummary | null;
   id: string;
   category: string;
   title: string;
@@ -47,6 +52,7 @@ export interface ForumCommentView {
 }
 
 export interface ForumPostDraft {
+  circleId?: string;
   category: string;
   title: string;
   body: string;
@@ -63,4 +69,10 @@ export function forumCategoryLabel(category: string): string {
   if (category === FORUM_CATEGORY_EXPERIENCE) return '经验分享';
   if (category === FORUM_CATEGORY_QUESTION) return '问题求助';
   return category;
+}
+
+export function forumTimeText(value: string, includeSeconds: boolean = false): string {
+  const time: Date = new Date(new Date(value).getTime() + 8 * 3600000);
+  const minutes: string = `${time.getUTCFullYear()}-${(time.getUTCMonth() + 1).toString().padStart(2, '0')}-${time.getUTCDate().toString().padStart(2, '0')} ${time.getUTCHours().toString().padStart(2, '0')}:${time.getUTCMinutes().toString().padStart(2, '0')}`;
+  return includeSeconds ? minutes + ':' + time.getUTCSeconds().toString().padStart(2, '0') : minutes;
 }

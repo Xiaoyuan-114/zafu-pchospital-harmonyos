@@ -12,7 +12,7 @@ import { forumService } from "../../src/features/forum/forum-service";
 import { integrationTestsEnabled } from "./db-guard";
 import type { AuthorizedActor } from "../../src/types/contracts";
 import { AppError } from "../../src/lib/api/errors";
-import { POST as createCircle } from "../../src/app/api/v1/forum/circles/route";
+import { GET as listCircles, POST as createCircle } from "../../src/app/api/v1/forum/circles/route";
 import {
   POST as followUser,
   DELETE as unfollowUser,
@@ -366,4 +366,42 @@ dbTest("同账号多条报名，撤回与恢复只记录一次现场积分", asy
     )._sum.amount,
     10,
   );
+});
+
+dbTest("圈子分类独立于首页，按分类筛选后再分页", async () => {
+  const hiddenCategory = "分类-" + randomUUID();
+  const save = (category: string) =>
+    communityService.saveCircle(
+      null,
+      {
+        name: "测试圈",
+        description: "测试",
+        category,
+        createRequestKey: randomUUID(),
+      },
+      actor(a, true),
+    );
+  await save("分类-其他");
+  const target = await save(hiddenCategory);
+  for (const query of [
+    "pageSize=1",
+    "view=categories",
+    "category=" + encodeURIComponent(hiddenCategory) + "&pageSize=1",
+  ]) {
+    const response = await listCircles(
+      new Request("http://localhost/api/v1/forum/circles?" + query),
+    );
+    assert.equal(response.status, 200);
+    const { data, meta } = await response.json();
+    if (query === "pageSize=1")
+      assert.ok(!data.some((item: { id: string }) => item.id === target.id));
+    else if (query === "view=categories") assert.ok(data.includes(hiddenCategory));
+    else {
+      assert.deepEqual(
+        data.map((item: { id: string }) => item.id),
+        [target.id],
+      );
+      assert.equal(meta.pagination.total, 1);
+    }
+  }
 });

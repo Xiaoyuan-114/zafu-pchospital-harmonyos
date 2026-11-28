@@ -6,6 +6,7 @@ export class LoginIntent {
   route: string = '';
   param: Object | null = null;
   tab: number = -1;
+  forumChannel: string = '';
 }
 
 export function routeAfterLogin(route: string, identity: SessionIdentity): string {

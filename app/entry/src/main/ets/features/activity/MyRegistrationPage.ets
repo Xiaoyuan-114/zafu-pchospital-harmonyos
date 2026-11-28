@@ -106,6 +106,7 @@ export struct MyRegistrationPage {
           RegistrationStageCard({ label: '接待', reached: registrationStageReached(this.item.status, 2),
             time: registrationStageTime(this.item.status, 2, this.item.servedAt) }).layoutWeight(1)
         }.width('100%').alignItems(VerticalAlign.Top)
+        Text(this.item.activityPoints === undefined ? '本场积分  暂不可用' : '本场积分  ' + this.item.activityPoints + ' 分').fontSize(14).fontColor('#BD7737').width('100%')
         Text(this.item.status === 'SERVED' ? '已接待表示工作人员已开始接待，维修结果请联系现场成员确认。' :
           this.item.status === 'CHECKED_IN' ? '你已完成本场签到，请等候现场工作人员安排接待。' :
           this.item.status === 'REGISTERED' ? '当前尚未签到，请按活动时间到场，由工作人员核实。撤回排队后也会回到此状态。' :

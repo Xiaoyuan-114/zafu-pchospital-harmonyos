@@ -146,7 +146,7 @@ test("公开帖子列表按后端顺序编码分类、关键词与固定分页",
   await service.listPosts("QUESTION", "清灰", 2);
   assert.equal(
     calls[0].path,
-    "/api/v1/forum/posts?category=QUESTION&q=%E6%B8%85%E7%81%B0&page=2&pageSize=20",
+    "/api/v1/forum/posts?category=QUESTION&q=%E6%B8%85%E7%81%B0&page=2&pageSize=20&channel=recommended&circleId=&sort=latest",
   );
   assert.equal(calls[0].method, "getPage");
   assert.equal(calls[0].token, "");
@@ -293,6 +293,7 @@ interface ForumFeedApi {
   active: boolean;
   onSearchModeChanged(): void;
   onActiveChanged(): void;
+  onAuthChanged(): void;
   loading: boolean;
   loadingMore: boolean;
   errorText: string;
@@ -332,6 +333,7 @@ function feedHarness() {
     setTimeout,
     clearTimeout,
     ScrollAlign: { START: 0 },
+    SessionService: { sessionStamp: () => "test-session" },
     LengthMetrics: { vp: (value: number) => value },
     ForumService: {
       listPosts: (category: string, query: string, page: number) =>
@@ -488,6 +490,22 @@ test("取消论坛搜索恢复原列表，丢弃搜索的迟到结果", async ()
   assert.equal(feed.query, "");
   assert.equal(feed.totalPages, 2);
   assert.equal(feed.loading, false);
+});
+
+test("切换账号清空旧信息流并忽略迟到响应", async () => {
+  const { feed, requests, result } = feedHarness();
+  const initial = feed.load();
+  requests[0].resolve(result(1, ["user-a"]));
+  await initial;
+  const stale = feed.load();
+  feed.onAuthChanged();
+  assert.equal(feed.posts.length, 0);
+  requests[1].resolve(result(1, ["late-user-a"]));
+  await stale;
+  assert.equal(feed.posts.length, 0);
+  requests[2].resolve(result(1, ["user-b"]));
+  await settle();
+  assert.deepEqual(Array.from(feed.posts, (post) => post.id), ["user-b"]);
 });
 
 test("隐藏论坛时作废在途请求，返回可重新加载且忙状态不残留", async () => {
@@ -774,6 +792,9 @@ test("删除评论只在服务端确认后移除本地项", async () => {
 });
 
 interface ComposeApi {
+  circleId: string;
+  circles: Array<{ id: string; name: string; archived: boolean }>;
+  loadCircles(): Promise<void>;
   savedId: string;
   category: string;
   title: string;
@@ -822,11 +843,17 @@ function composeHarness() {
   const createCalls: unknown[] = [];
   const uploadCalls: unknown[][] = [];
   const pickerLimits: number[] = [];
+  const circleCalls: number[] = [];
+  const circlePages = new Map<number, Array<{ id: string; name: string; archived: boolean }>>();
   let createFailure: { code: string; message: string; status?: number } | null = null;
   let uploadFailure: { code: string; message: string; status?: number } | null = null;
   let uploadFailAt = 0;
   let pickResult = { images: [] as Array<{ fileName: string; mimeType: string; data: ArrayBuffer }>, selectedCount: 0 };
   const compose = runInNewContext(code, {
+    CommunityService: { circles: async (page: number) => {
+      circleCalls.push(page);
+      return { items: circlePages.get(page) ?? [], pagination: { totalPages: circlePages.size } };
+    } },
     ForumService: {
       newCreateRequestKey: () => "create-once",
       newUploadKey: () => "upload-once",
@@ -853,12 +880,26 @@ function composeHarness() {
   compose.category = "GENERAL";
   compose.title = "真实标题";
   compose.body = "真实正文";
-  return { compose, createCalls, uploadCalls, pickerLimits,
+  return { compose, createCalls, uploadCalls, pickerLimits, circleCalls, circlePages,
     setCreateFailure: (value: typeof createFailure) => { createFailure = value; },
     setUploadFailure: (value: typeof uploadFailure) => { uploadFailure = value; },
     failUploadAt: (value: number) => { uploadFailAt = value; },
     setPickResult: (value: typeof pickResult) => { pickResult = value; } };
 }
+
+test("发帖圈子选择读取全部已加入分页，并阻止不可用圈子提交", async () => {
+  const { compose, circleCalls, circlePages, createCalls } = composeHarness();
+  circlePages.set(1, [{ id: "one", name: "圈子一", archived: false }]);
+  circlePages.set(2, [{ id: "two", name: "圈子二", archived: false }]);
+  compose.circleId = "two";
+  await compose.loadCircles();
+  assert.deepEqual(circleCalls, [1, 2]);
+  assert.deepEqual(Array.from(compose.circles, (circle) => circle.id), ["one", "two"]);
+  compose.circleId = "missing";
+  await compose.submit();
+  assert.equal(createCalls.length, 0);
+  assert.match(compose.errorText, /圈子不可用/);
+});
 
 test("取消选图不报错，选择了不可读取的图片时提示原因", async () => {
   const { compose, setPickResult } = composeHarness();

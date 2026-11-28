@@ -102,11 +102,25 @@ export const communityService = {
     return circleView(row, actor);
   },
 
-  async circles(actor: AuthorizedActor | null, pagination: PaginationInput, joined = false) {
+  async circleCategories() {
+    const rows = await getDb().forumCircle.groupBy({
+      by: ["category"],
+      orderBy: { category: "asc" },
+    });
+    return rows.map((row) => row.category);
+  },
+
+  async circles(
+    actor: AuthorizedActor | null,
+    pagination: PaginationInput,
+    joined = false,
+    category = "",
+  ) {
     if (joined && !actor) throw new AppError("UNAUTHENTICATED", "请先登录查看已加入圈子");
-    const where: Prisma.ForumCircleWhereInput = joined
-      ? { memberships: { some: { userId: forumUserId(actor!) } } }
-      : {};
+    const where: Prisma.ForumCircleWhereInput = {
+      ...(joined ? { memberships: { some: { userId: forumUserId(actor!) } } } : {}),
+      ...(category ? { category } : {}),
+    };
     const [rows, total] = await Promise.all([
       getDb().forumCircle.findMany({
         where,

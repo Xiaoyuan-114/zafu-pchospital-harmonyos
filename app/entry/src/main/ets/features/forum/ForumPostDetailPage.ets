@@ -1,17 +1,13 @@
+import { FollowButton } from './FollowButton';
 import { ApiRequestError, isSessionExpiredCode } from '../../core/network/ApiClient';
 import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { ApiPage } from '../../core/network/ApiContract';
 import { SessionService } from '../../core/auth/SessionService';
 import { ErrorPanel, LoadingPanel } from '../../core/ui/StatePanel';
-import { ForumCommentView, ForumImageView, ForumPostParam, ForumPostView, forumCategoryLabel } from './ForumContract';
+import { ForumCommentView, ForumImageView, ForumPostParam, ForumPostView, forumCategoryLabel, forumTimeText } from './ForumContract';
 import { ForumService } from './ForumService';
 import { ForumPostImage } from './ForumFeed';
 import { FORUM_ACCENT, FORUM_BACKGROUND, FORUM_INK, FORUM_MUTED, FORUM_SECONDARY, FORUM_SURFACE } from './ForumTheme';
-
-function detailTimeText(value: string): string {
-  const time: Date = new Date(new Date(value).getTime() + 8 * 3600000);
-  return `${time.getUTCFullYear()}-${(time.getUTCMonth() + 1).toString().padStart(2, '0')}-${time.getUTCDate().toString().padStart(2, '0')} ${time.getUTCHours().toString().padStart(2, '0')}:${time.getUTCMinutes().toString().padStart(2, '0')}`;
-}
 
 /** 公开帖子详情；写操作以页面生命周期和会话代次丢弃迟到回调。 */
 @Component
@@ -351,7 +347,7 @@ export struct ForumPostDetailPage {
           }
         }.width('100%')
         Text(item.body).fontSize(15).lineHeight(23).fontColor(FORUM_INK).width('100%')
-        Text(detailTimeText(item.createdAt)).fontSize(11).fontColor(FORUM_MUTED).width('100%')
+        Text(forumTimeText(item.createdAt)).fontSize(11).fontColor(FORUM_MUTED).width('100%')
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
     }
     .width('100%')
@@ -424,7 +420,7 @@ export struct ForumPostDetailPage {
           .enabled(!this.commentSending).onFocus(() => { this.resizeForKeyboard(); })
           .onBlur(() => { this.restoreKeyboardMode(); })
         Button(this.commentSending ? '发送中…' : (this.commentRequestKey === '' ? '发送' : '重试'))
-          .height(42).fontSize(14).backgroundColor(FORUM_ACCENT).fontColor(FORUM_INK).enabled(!this.commentSending)
+          .height(42).fontSize(14).backgroundColor(FORUM_ACCENT).fontColor(Color.White).enabled(!this.commentSending)
           .onClick(() => {
             if (this.commentRequestKey === '') this.sendComment();
             else this.retryComment();
@@ -444,6 +440,14 @@ export struct ForumPostDetailPage {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
         this.detailHeader()
+        if (this.detail !== null) {
+          Row({ space: 28 }) {
+            Button('正文').fontColor(FORUM_ACCENT).backgroundColor(Color.Transparent)
+              .onClick(() => { this.detailScroller.scrollTo({ xOffset: 0, yOffset: 0 }); })
+            Button('评论 ' + this.detail!.commentCount).fontColor(FORUM_ACCENT).backgroundColor(Color.Transparent)
+              .onClick(() => { this.showComments(); })
+          }.width('100%').padding({ left: 16, right: 16 }).backgroundColor(FORUM_SURFACE)
+        }
         if (this.loading && this.detail === null) {
           LoadingPanel({ text: '正在加载帖子…' }).layoutWeight(1)
         } else if (this.errorText !== '' && this.detail === null) {
@@ -462,8 +466,10 @@ export struct ForumPostDetailPage {
                   Image($r('app.media.forum_avatar')).width(34).height(34)
                   Column({ space: 3 }) {
                     Text(this.detail!.author.displayName).fontSize(14).fontWeight(FontWeight.Medium).fontColor(FORUM_INK)
-                    Text(detailTimeText(this.detail!.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
+                    Text(forumTimeText(this.detail!.createdAt)).fontSize(11).fontColor(FORUM_MUTED)
                   }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+                  FollowButton({ author: this.detail!.author, authenticated: this.authenticated, onLogin: this.onLogin,
+                    onChanged: this.onChanged })
                 }.width('100%')
                 Text(this.detail!.body).fontSize(16).lineHeight(27).fontColor(FORUM_INK).width('100%')
                 if (this.detail!.images.length > 0) {
